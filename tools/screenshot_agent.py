@@ -441,6 +441,9 @@ def get_db_connection(config: dict):
         user=config['db_user'],
         password=config['db_pass'],
         database=config['db_name'],
+        # See issue #31: buffered cursors avoid cext
+        # "Unread result found" errors.
+        buffered=True,
     )
 
 

@@ -155,7 +155,12 @@ def get_db_connection(config: dict, database: str = None):
         ),
         database=database or config.get(
             'LLMChatter.Database.Name', 'acore_characters'
-        )
+        ),
+        # Buffered cursors free the server-side result at
+        # execute() time, preventing "Unread result found"
+        # errors on the C-extension connector (cext) when a
+        # prior cursor is left unclosed. See issue #31.
+        buffered=True,
     )
 
 

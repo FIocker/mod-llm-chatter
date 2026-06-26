@@ -284,6 +284,9 @@ def _db_connect(config):
         database=config.get(
             'LLMChatter.Database.Name', 'acore_characters'
         ),
+        # See issue #31: buffered cursors avoid cext
+        # "Unread result found" errors.
+        buffered=True,
     )
 
 
