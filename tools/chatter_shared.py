@@ -62,6 +62,7 @@ from chatter_db import (
     get_recent_bot_messages,
     get_character_info_by_name,
     get_character_talents,
+    get_creature_entry_column,
 )
 from talent_catalog import TALENT_CATALOG
 
@@ -1059,11 +1060,12 @@ def get_dungeon_bosses(
 
     try:
         cursor = db.cursor(dictionary=True)
-        cursor.execute("""
+        entry_col = get_creature_entry_column(db)
+        cursor.execute(f"""
             SELECT ct.name
             FROM acore_world.creature_template ct
             JOIN acore_world.creature c
-                ON c.id1 = ct.entry
+                ON c.{entry_col} = ct.entry
             WHERE c.map = %s
                 AND (ct.`rank` = 3
                      OR ct.CreatureImmunitiesId > 0)

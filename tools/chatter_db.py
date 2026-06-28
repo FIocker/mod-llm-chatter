@@ -164,6 +164,37 @@ def get_db_connection(config: dict, database: str = None):
     )
 
 
+_creature_entry_col = None
+
+
+def get_creature_entry_column(db):
+    """Resolve the creature-entry column name once, cached.
+
+    Upstream AzerothCore renamed creature.id1 -> creature.id
+    (PR #25197, migration 2026_06_16_00). Detect which column
+    this server's schema uses so queries work on both the old
+    and updated source trees. Returns 'id' or 'id1'.
+    """
+    global _creature_entry_col
+    if _creature_entry_col:
+        return _creature_entry_col
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = 'acore_world' "
+            "AND TABLE_NAME = 'creature' "
+            "AND COLUMN_NAME IN ('id', 'id1') "
+            "ORDER BY (COLUMN_NAME = 'id') DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        _creature_entry_col = (row[0] if row else 'id')
+    except Exception:
+        _creature_entry_col = 'id'
+    return _creature_entry_col
+
+
 def wait_for_database(
     config: dict,
     max_retries: int = 30,
@@ -268,7 +299,8 @@ def query_zone_loot(
             map_id, min_x, max_x, min_y, max_y = (
                 ZONE_COORDINATES[zone_id]
             )
-            cursor.execute("""
+            entry_col = get_creature_entry_column(db)
+            cursor.execute(f"""
                 SELECT DISTINCT
                     i.entry as item_id,
                     i.name as item_name,
@@ -277,7 +309,7 @@ def query_zone_loot(
                     i.SellPrice as sell_price,
                     ct.name as drops_from
                 FROM creature c
-                JOIN creature_template ct ON c.id1 = ct.entry
+                JOIN creature_template ct ON c.{entry_col} = ct.entry
                 JOIN creature_loot_template clt
                     ON ct.lootid = clt.Entry
                 JOIN item_template i ON clt.Item = i.entry
@@ -403,10 +435,11 @@ def query_zone_mobs(
             map_id, min_x, max_x, min_y, max_y = (
                 ZONE_COORDINATES[zone_id]
             )
+            entry_col = get_creature_entry_column(db)
             cursor.execute(f"""
                 SELECT DISTINCT ct.entry, ct.name
                 FROM creature c
-                JOIN creature_template ct ON c.id1 = ct.entry
+                JOIN creature_template ct ON c.{entry_col} = ct.entry
                 WHERE c.map = %s
                   AND c.position_x BETWEEN %s AND %s
                   AND c.position_y BETWEEN %s AND %s
@@ -554,13 +587,14 @@ def query_zone_npcs(
             map_id, min_x, max_x, min_y, max_y = (
                 ZONE_COORDINATES[zone_id]
             )
+            entry_col = get_creature_entry_column(db)
             cursor.execute(f"""
                 SELECT DISTINCT
                     ct.entry, ct.name, ct.subname,
                     ct.npcflag, ct.type, ct.unit_class,
                     ct.minlevel, ct.maxlevel
                 FROM creature c
-                JOIN creature_template ct ON c.id1 = ct.entry
+                JOIN creature_template ct ON c.{entry_col} = ct.entry
                 WHERE c.map = %s
                   AND c.position_x BETWEEN %s AND %s
                   AND c.position_y BETWEEN %s AND %s

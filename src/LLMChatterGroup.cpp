@@ -68,6 +68,29 @@
 #include <unordered_set>
 #include <vector>
 
+namespace
+{
+    // Upstream AzerothCore renamed creature.id1 -> creature.id
+    // (PR #25197, migration 2026_06_16_00). Resolve the column
+    // name once (lazy, thread-safe magic static) so our SQL
+    // works on both the old and updated core source.
+    std::string const& GetCreatureEntryColumn()
+    {
+        static std::string const column = []() -> std::string
+        {
+            if (QueryResult r = WorldDatabase.Query(
+                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = 'acore_world' "
+                    "AND TABLE_NAME = 'creature' "
+                    "AND COLUMN_NAME IN ('id', 'id1') "
+                    "ORDER BY (COLUMN_NAME = 'id') DESC LIMIT 1"))
+                return (*r)[0].Get<std::string>();
+            return "id";
+        }();
+        return column;
+    }
+}
+
 // ============================================================================
 // PRE-CACHE INSTANT REACTION HELPERS
 // ============================================================================
@@ -364,18 +387,19 @@ void LoadNamedBossCache()
     // only 1 spawn on their map (filters out trash
     // like Molten Elementals that have immunities
     // but spawn many times)
-    QueryResult result = WorldDatabase.Query(
+    std::string query =
         "SELECT entry FROM ("
         "  SELECT ct.entry, ct.`rank`,"
         "    ct.CreatureImmunitiesId,"
         "    COUNT(*) AS spawns"
         "  FROM creature_template ct"
-        "  JOIN creature c ON c.id1 = ct.entry"
+        "  JOIN creature c ON c." + GetCreatureEntryColumn() + " = ct.entry"
         "  WHERE ct.`rank` = 3"
         "    OR ct.CreatureImmunitiesId > 0"
         "  GROUP BY ct.entry, c.map"
         "  HAVING ct.`rank` = 3 OR COUNT(*) = 1"
-        ") AS bosses");
+        ") AS bosses";
+    QueryResult result = WorldDatabase.Query(query);
     if (result)
     {
         do
