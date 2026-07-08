@@ -158,7 +158,7 @@ namespace
     bool IsMultiBotCompatEnabled()
     {
         return sConfigMgr->GetOption<bool>(
-            "LLMChatter.MultiBotCompat.Enable", true);
+            "LLMChatter.MultiBotCompat.Enable", false);
     }
 
     bool TryExtractMultiBotPayload(

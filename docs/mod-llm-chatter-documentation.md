@@ -37,11 +37,11 @@ High-level behavior:
   and natural player reply detection
 - in-game addon bridge: `.llmc` command lets the Chatter Companion addon
   read and write bot personality traits and tone from the game UI
-- MultiBot-Chatless compatibility: known `MBOT` addon packets
-  (`HELLO`, `PING`, `GET~ROSTER`, `GET~STATE(S)`,
-  `GET~DETAIL(S)`) are answered server-side and consumed before
-  normal party chat broadcast. Other `MBOT` packets are left for the
-  dedicated MultiBot bridge or normal addon routing
+- MultiBot-Chatless bridge coexistence: hidden `MBOT` addon traffic is
+  ignored by chatter logging and left for `mod-multibot-bridge` by
+  default, so chatter does not block the addon's chatless
+  communication. An optional fallback handler remains available for
+  installs without the bridge
 
 ---
 
@@ -364,11 +364,13 @@ Retains core group glue:
 - shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
   `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
   helpers
-- MultiBot-Chatless `MBOT` compatibility when
-  `LLMChatter.MultiBotCompat.Enable = 1`: handshake, ping, roster,
-  state, and detail refreshes are answered. Other `MBOT` addon
-  packets are left for the dedicated MultiBot bridge or normal addon
-  routing
+- MultiBot-Chatless bridge coexistence. By default,
+  `mod-multibot-bridge` owns `MBOT` packets and mod-llm-chatter only
+  suppresses its own ignored-addon debug log for that hidden protocol.
+  It does not consume or block the addon's communication in this mode.
+  When `LLMChatter.MultiBotCompat.Enable = 1`, a fallback handler
+  answers handshake, ping, roster, state, and detail refreshes for
+  installs without the bridge
 - `CleanupGroupSession()` coordinator
 - named-boss cache
  - thin `LLMChatterGroupPlayerScript` wrappers

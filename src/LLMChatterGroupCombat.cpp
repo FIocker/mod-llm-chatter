@@ -17,7 +17,6 @@
 #include "AchievementMgr.h"
 #include "Battleground.h"
 #include "Chat.h"
-#include "Config.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "Group.h"
@@ -31,21 +30,13 @@
 #include "WorldSessionMgr.h"
 
 #include <algorithm>
-#include <cctype>
 #include <ctime>
 #include <set>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace
 {
-
-bool IsMultiBotCompatEnabled()
-{
-    return sConfigMgr->GetOption<bool>(
-        "LLMChatter.MultiBotCompat.Enable", true);
-}
 
 std::string TrimMultiBotCompat(std::string const& value)
 {
@@ -57,58 +48,10 @@ std::string TrimMultiBotCompat(std::string const& value)
     return value.substr(start, end - start + 1);
 }
 
-std::string ToUpperMultiBotCompat(std::string value)
-{
-    std::transform(
-        value.begin(), value.end(), value.begin(),
-        [](unsigned char c)
-        {
-            return static_cast<char>(std::toupper(c));
-        });
-    return value;
-}
-
-std::pair<std::string, std::string> SplitMultiBotCompatOnce(
-    std::string const& value)
-{
-    size_t pos = value.find('~');
-    if (pos == std::string::npos)
-        return {value, ""};
-
-    return {value.substr(0, pos), value.substr(pos + 1)};
-}
-
-bool IsKnownMultiBotCompatPayload(std::string const& msg)
+bool IsMultiBotAddonPayload(std::string const& msg)
 {
     std::string const trimmed = TrimMultiBotCompat(msg);
-    if (trimmed.rfind("MBOT\t", 0) != 0)
-        return false;
-
-    std::string const payload =
-        TrimMultiBotCompat(trimmed.substr(5));
-    std::pair<std::string, std::string> const packet =
-        SplitMultiBotCompatOnce(payload);
-    std::string const opcode =
-        ToUpperMultiBotCompat(
-            TrimMultiBotCompat(packet.first));
-
-    if (opcode == "HELLO" || opcode == "PING")
-        return true;
-
-    if (opcode != "GET")
-        return false;
-
-    std::pair<std::string, std::string> const request =
-        SplitMultiBotCompatOnce(packet.second);
-    std::string const requestType =
-        ToUpperMultiBotCompat(
-            TrimMultiBotCompat(request.first));
-
-    return requestType == "ROSTER"
-        || requestType == "STATE"
-        || requestType == "STATES"
-        || requestType == "DETAIL"
-        || requestType == "DETAILS";
+    return trimmed.rfind("MBOT\t", 0) == 0;
 }
 
 void QueueStateCallout(
@@ -862,12 +805,11 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     if (!player || msg.empty())
         return;
 
-    // Ignore hidden addon traffic (DBM, Questie, ElvUI, ...);
-    // it is real chat tagged LANG_ADDON, not player speech.
+    // Ignore hidden addon traffic. MBOT is owned by
+    // mod-multibot-bridge unless the fallback handler is enabled later.
     if (lang == LANG_ADDON)
     {
-        if (!IsMultiBotCompatEnabled()
-            || !IsKnownMultiBotCompatPayload(msg))
+        if (!IsMultiBotAddonPayload(msg))
         {
             LogIgnoredAddonChat(
                 player, type, msg, "party");
