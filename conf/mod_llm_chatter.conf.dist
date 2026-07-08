@@ -1528,7 +1528,8 @@ LLMChatter.RaidChatter.MoraleCooldown = 60
 #       Ambient guild-channel chatter. When enabled,
 #       online bot guild members occasionally post a
 #       short in-character line to guild chat. Off by
-#       default so existing setups are unaffected.
+#       default because guild chat is still beta, and so
+#       existing setups are unaffected.
 #       Default: 0
 #
 LLMChatter.GuildChatter.Enable = 0
@@ -1575,6 +1576,21 @@ LLMChatter.GuildChatter.ScanInterval = 30
 #       Default: 200
 #
 LLMChatter.GuildChatter.MaxTokens = 200
+
+#
+#   LLMChatter.GuildChatter.ZoneNameChance
+#       Percent chance (0-100) that a guild line is told to
+#       name the speaker's current zone. Guild chat reaches
+#       guildmates scattered across other zones, so a bot
+#       saying "this swamp" is meaningless to them. The model
+#       cannot be trusted to self-pace this, so the decision
+#       is made per-line by this RNG roll: on a hit the prompt
+#       asks the bot to work the zone name in; on a miss the
+#       prompt forbids referencing the location at all.
+#       Set 0 to never name, 100 to always name.
+#       Default: 20
+#
+LLMChatter.GuildChatter.ZoneNameChance = 20
 
 #
 #   LLMChatter.RaidChatter.BattleCryChance
