@@ -37,6 +37,11 @@ High-level behavior:
   and natural player reply detection
 - in-game addon bridge: `.llmc` command lets the Chatter Companion addon
   read and write bot personality traits and tone from the game UI
+- MultiBot-Chatless compatibility: known `MBOT` addon packets
+  (`HELLO`, `PING`, `GET~ROSTER`, `GET~STATE(S)`,
+  `GET~DETAIL(S)`) are answered server-side and consumed before
+  normal party chat broadcast. Other `MBOT` packets are left for the
+  dedicated MultiBot bridge or normal addon routing
 
 ---
 
@@ -359,6 +364,11 @@ Retains core group glue:
 - shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
   `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
   helpers
+- MultiBot-Chatless `MBOT` compatibility when
+  `LLMChatter.MultiBotCompat.Enable = 1`: handshake, ping, roster,
+  state, and detail refreshes are answered. Other `MBOT` addon
+  packets are left for the dedicated MultiBot bridge or normal addon
+  routing
 - `CleanupGroupSession()` coordinator
 - named-boss cache
  - thin `LLMChatterGroupPlayerScript` wrappers
@@ -522,6 +532,10 @@ When adding a new Python-only config key:
 2. Add the key to your active server config file
 3. Read it in Python via `config.get('LLMChatter.GroupChatter.KeyName', default)`
 4. No C++ changes needed
+
+Some narrow server-side compatibility switches may be read directly
+through `sConfigMgr` instead of being stored on `LLMChatterConfig`.
+`LLMChatter.MultiBotCompat.Enable` follows that shape.
 
 ---
 

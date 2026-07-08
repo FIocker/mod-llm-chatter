@@ -17,6 +17,7 @@
 #include "AchievementMgr.h"
 #include "Battleground.h"
 #include "Chat.h"
+#include "Config.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "Group.h"
@@ -30,13 +31,85 @@
 #include "WorldSessionMgr.h"
 
 #include <algorithm>
+#include <cctype>
 #include <ctime>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace
 {
+
+bool IsMultiBotCompatEnabled()
+{
+    return sConfigMgr->GetOption<bool>(
+        "LLMChatter.MultiBotCompat.Enable", true);
+}
+
+std::string TrimMultiBotCompat(std::string const& value)
+{
+    size_t start = value.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos)
+        return "";
+
+    size_t end = value.find_last_not_of(" \t\r\n");
+    return value.substr(start, end - start + 1);
+}
+
+std::string ToUpperMultiBotCompat(std::string value)
+{
+    std::transform(
+        value.begin(), value.end(), value.begin(),
+        [](unsigned char c)
+        {
+            return static_cast<char>(std::toupper(c));
+        });
+    return value;
+}
+
+std::pair<std::string, std::string> SplitMultiBotCompatOnce(
+    std::string const& value)
+{
+    size_t pos = value.find('~');
+    if (pos == std::string::npos)
+        return {value, ""};
+
+    return {value.substr(0, pos), value.substr(pos + 1)};
+}
+
+bool IsKnownMultiBotCompatPayload(std::string const& msg)
+{
+    std::string const trimmed = TrimMultiBotCompat(msg);
+    if (trimmed.rfind("MBOT\t", 0) != 0)
+        return false;
+
+    std::string const payload =
+        TrimMultiBotCompat(trimmed.substr(5));
+    std::pair<std::string, std::string> const packet =
+        SplitMultiBotCompatOnce(payload);
+    std::string const opcode =
+        ToUpperMultiBotCompat(
+            TrimMultiBotCompat(packet.first));
+
+    if (opcode == "HELLO" || opcode == "PING")
+        return true;
+
+    if (opcode != "GET")
+        return false;
+
+    std::pair<std::string, std::string> const request =
+        SplitMultiBotCompatOnce(packet.second);
+    std::string const requestType =
+        ToUpperMultiBotCompat(
+            TrimMultiBotCompat(request.first));
+
+    return requestType == "ROSTER"
+        || requestType == "STATE"
+        || requestType == "STATES"
+        || requestType == "DETAIL"
+        || requestType == "DETAILS";
+}
 
 void QueueStateCallout(
     Player* bot, Group* group,
@@ -793,8 +866,12 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     // it is real chat tagged LANG_ADDON, not player speech.
     if (lang == LANG_ADDON)
     {
-        LogIgnoredAddonChat(
-            player, type, msg, "party");
+        if (!IsMultiBotCompatEnabled()
+            || !IsKnownMultiBotCompatPayload(msg))
+        {
+            LogIgnoredAddonChat(
+                player, type, msg, "party");
+        }
         return;
     }
 

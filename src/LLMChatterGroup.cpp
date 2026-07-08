@@ -36,6 +36,7 @@
 #include "Chat.h"
 #include "Channel.h"
 #include "ChannelMgr.h"
+#include "Config.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "GameTime.h"
@@ -52,6 +53,7 @@
 #include "ScriptMgr.h"
 #include "Spell.h"
 #include "World.h"
+#include "WorldPacket.h"
 #include "WorldSession.h"
 #include "WorldSessionMgr.h"
 
@@ -66,10 +68,17 @@
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace
 {
+    char const* const kMultiBotPrefix = "MBOT";
+    char const* const kMultiBotBridgeName =
+        "mod-llm-chatter";
+    char const* const kMultiBotProtocolVersion = "1";
+    char const kMultiBotSeparator = '~';
+
     // Upstream AzerothCore renamed creature.id1 -> creature.id
     // (PR #25197, migration 2026_06_16_00). Resolve the column
     // name once (lazy, thread-safe magic static) so our SQL
@@ -88,6 +97,500 @@ namespace
             return "id";
         }();
         return column;
+    }
+
+    std::string TrimMultiBot(std::string const& value)
+    {
+        size_t start = value.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos)
+            return "";
+
+        size_t end = value.find_last_not_of(" \t\r\n");
+        return value.substr(start, end - start + 1);
+    }
+
+    std::string ToUpperMultiBot(std::string value)
+    {
+        std::transform(
+            value.begin(), value.end(), value.begin(),
+            [](unsigned char c)
+            {
+                return static_cast<char>(std::toupper(c));
+            });
+        return value;
+    }
+
+    std::pair<std::string, std::string> SplitMultiBotOnce(
+        std::string const& value, char separator)
+    {
+        size_t pos = value.find(separator);
+        if (pos == std::string::npos)
+            return {value, ""};
+
+        return {
+            value.substr(0, pos),
+            value.substr(pos + 1)};
+    }
+
+    std::string EncodeMultiBotField(std::string const& value)
+    {
+        static char const* hex = "0123456789ABCDEF";
+        std::string out;
+        out.reserve(value.size());
+
+        for (unsigned char c : value)
+        {
+            if (c == '%' || c == '~'
+                || c == '\r' || c == '\n')
+            {
+                out.push_back('%');
+                out.push_back(hex[(c >> 4) & 0x0F]);
+                out.push_back(hex[c & 0x0F]);
+                continue;
+            }
+
+            out.push_back(static_cast<char>(c));
+        }
+
+        return out;
+    }
+
+    bool IsMultiBotCompatEnabled()
+    {
+        return sConfigMgr->GetOption<bool>(
+            "LLMChatter.MultiBotCompat.Enable", true);
+    }
+
+    bool TryExtractMultiBotPayload(
+        uint32 language, std::string const& msg,
+        std::string& payload)
+    {
+        if (language != LANG_ADDON)
+            return false;
+
+        std::string const trimmed = TrimMultiBot(msg);
+        std::string const prefix =
+            std::string(kMultiBotPrefix) + "\t";
+        if (trimmed.rfind(prefix, 0) != 0)
+            return false;
+
+        payload = TrimMultiBot(trimmed.substr(prefix.size()));
+        return !payload.empty();
+    }
+
+    ChatMsg NormalizeMultiBotReplyType(uint32 type)
+    {
+        switch (type)
+        {
+            case CHAT_MSG_PARTY:
+            case CHAT_MSG_PARTY_LEADER:
+            case CHAT_MSG_RAID:
+            case CHAT_MSG_RAID_LEADER:
+            case CHAT_MSG_GUILD:
+            case CHAT_MSG_OFFICER:
+            case CHAT_MSG_WHISPER:
+            case CHAT_MSG_CHANNEL:
+                return static_cast<ChatMsg>(type);
+            default:
+                return CHAT_MSG_WHISPER;
+        }
+    }
+
+    void SendMultiBotAddonPacket(
+        Player* player, ChatMsg chatType,
+        std::string const& opcode,
+        std::string const& payload = "")
+    {
+        if (!player || !player->GetSession())
+            return;
+
+        std::string wire =
+            std::string(kMultiBotPrefix) + "\t" + opcode;
+        if (!payload.empty())
+        {
+            wire += std::string(1, kMultiBotSeparator)
+                + payload;
+        }
+
+        if (sLLMChatterConfig
+            && sLLMChatterConfig->IsDebugLog())
+        {
+            LOG_INFO(
+                "module",
+                "LLMChatter: MultiBotCompat TX [{}] type={}",
+                wire, static_cast<uint32>(chatType));
+        }
+
+        WorldPacket data;
+        ChatHandler::BuildChatPacket(
+            data, chatType, LANG_ADDON,
+            player, nullptr, wire.c_str());
+        player->SendDirectMessage(&data);
+    }
+
+    uint32 GetMultiBotPct(uint32 current, uint32 max)
+    {
+        if (!max)
+            return 0;
+
+        return static_cast<uint32>(
+            (current * 100u) / max);
+    }
+
+    void AppendMultiBotVisibleBot(
+        Player* bot, std::vector<Player*>& bots,
+        std::set<ObjectGuid>& seen)
+    {
+        if (!bot || !bot->IsInWorld()
+            || !sPlayerbotsMgr.GetPlayerbotAI(bot))
+            return;
+
+        if (!seen.insert(bot->GetGUID()).second)
+            return;
+
+        bots.push_back(bot);
+    }
+
+    bool CanExposeRandomMultiBot(
+        Player* requester, Player* bot)
+    {
+        if (!requester || !bot)
+            return false;
+
+        PlayerbotAI* botAI =
+            sPlayerbotsMgr.GetPlayerbotAI(bot);
+        if (!botAI)
+            return false;
+
+        Group* requesterGroup = requester->GetGroup();
+        if (requesterGroup
+            && bot->GetGroup() == requesterGroup)
+            return true;
+
+        return botAI->GetMaster() == requester;
+    }
+
+    std::vector<Player*> GetMultiBotVisibleBots(
+        Player* player)
+    {
+        std::vector<Player*> bots;
+        std::set<ObjectGuid> seen;
+        if (!player)
+            return bots;
+
+        if (PlayerbotMgr* mgr =
+                sPlayerbotsMgr.GetPlayerbotMgr(player))
+        {
+            for (PlayerBotMap::const_iterator it =
+                     mgr->GetPlayerBotsBegin();
+                 it != mgr->GetPlayerBotsEnd(); ++it)
+            {
+                AppendMultiBotVisibleBot(
+                    it->second, bots, seen);
+            }
+        }
+
+        if (Group* group = player->GetGroup())
+        {
+            for (GroupReference* itr =
+                     group->GetFirstMember();
+                 itr != nullptr; itr = itr->next())
+            {
+                AppendMultiBotVisibleBot(
+                    itr->GetSource(), bots, seen);
+            }
+        }
+
+        for (PlayerBotMap::const_iterator it =
+                 sRandomPlayerbotMgr.GetPlayerBotsBegin();
+             it != sRandomPlayerbotMgr.GetPlayerBotsEnd();
+             ++it)
+        {
+            Player* bot = it->second;
+            if (CanExposeRandomMultiBot(player, bot))
+                AppendMultiBotVisibleBot(bot, bots, seen);
+        }
+
+        return bots;
+    }
+
+    Player* FindMultiBotByName(
+        Player* player, std::string const& botName)
+    {
+        std::string const wanted = TrimMultiBot(botName);
+        if (wanted.empty())
+            return nullptr;
+
+        for (Player* bot : GetMultiBotVisibleBots(player))
+        {
+            if (bot->GetName() == wanted)
+                return bot;
+        }
+
+        return nullptr;
+    }
+
+    std::string JoinMultiBotStrategies(
+        std::vector<std::string> const& strategies)
+    {
+        std::ostringstream out;
+        for (size_t i = 0; i < strategies.size(); ++i)
+        {
+            if (i)
+                out << ", ";
+
+            out << strategies[i];
+        }
+
+        return out.str();
+    }
+
+    std::string BuildMultiBotRosterPayload(Player* player)
+    {
+        std::ostringstream out;
+        bool first = true;
+
+        for (Player* bot : GetMultiBotVisibleBots(player))
+        {
+            if (!first)
+                out << ';';
+            first = false;
+
+            out << bot->GetName()
+                << ',' << static_cast<uint32>(bot->getClass())
+                << ',' << static_cast<uint32>(bot->GetLevel())
+                << ',' << static_cast<uint32>(bot->GetMapId())
+                << ',' << (bot->IsAlive() ? '1' : '0')
+                << ',' << GetMultiBotPct(
+                    bot->GetHealth(), bot->GetMaxHealth())
+                << ',' << GetMultiBotPct(
+                    bot->GetPower(POWER_MANA),
+                    bot->GetMaxPower(POWER_MANA));
+        }
+
+        return out.str();
+    }
+
+    std::string BuildMultiBotDetailPayload(Player* bot)
+    {
+        if (!bot)
+            return "";
+
+        std::string const gender =
+            static_cast<uint8>(bot->getGender()) == 1
+                ? "Female" : "Male";
+
+        std::ostringstream out;
+        out << EncodeMultiBotField(bot->GetName())
+            << kMultiBotSeparator
+            << EncodeMultiBotField(
+                GetRaceName(static_cast<uint8>(
+                    bot->getRace())))
+            << kMultiBotSeparator
+            << EncodeMultiBotField(gender)
+            << kMultiBotSeparator
+            << EncodeMultiBotField(
+                GetChatterClassName(static_cast<uint8>(
+                    bot->getClass())))
+            << kMultiBotSeparator
+            << static_cast<uint32>(bot->GetLevel())
+            << kMultiBotSeparator << 0
+            << kMultiBotSeparator << 0
+            << kMultiBotSeparator << 0
+            << kMultiBotSeparator << 0;
+
+        return out.str();
+    }
+
+    std::string BuildMultiBotDetailPayload(
+        Player* player, std::string const& botName)
+    {
+        return BuildMultiBotDetailPayload(
+            FindMultiBotByName(player, botName));
+    }
+
+    void SendMultiBotDetailPackets(
+        Player* player, ChatMsg replyType)
+    {
+        bool sent = false;
+        for (Player* bot : GetMultiBotVisibleBots(player))
+        {
+            std::string const payload =
+                BuildMultiBotDetailPayload(bot);
+            if (payload.empty())
+                continue;
+
+            SendMultiBotAddonPacket(
+                player, replyType, "DETAIL", payload);
+            sent = true;
+        }
+
+        if (!sent)
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "DETAILS", "");
+        }
+    }
+
+    std::string BuildMultiBotStatePayloadForBot(
+        Player* bot, std::string const& fallbackName)
+    {
+        if (!bot)
+        {
+            return TrimMultiBot(fallbackName)
+                + std::string(1, kMultiBotSeparator)
+                + std::string(1, kMultiBotSeparator);
+        }
+
+        PlayerbotAI* botAI =
+            sPlayerbotsMgr.GetPlayerbotAI(bot);
+        if (!botAI)
+        {
+            return bot->GetName()
+                + std::string(1, kMultiBotSeparator)
+                + std::string(1, kMultiBotSeparator);
+        }
+
+        std::ostringstream out;
+        out << bot->GetName()
+            << kMultiBotSeparator
+            << JoinMultiBotStrategies(
+                botAI->GetStrategies(BOT_STATE_COMBAT))
+            << kMultiBotSeparator
+            << JoinMultiBotStrategies(
+                botAI->GetStrategies(
+                    BOT_STATE_NON_COMBAT));
+
+        return out.str();
+    }
+
+    std::string BuildMultiBotStatePayload(
+        Player* player, std::string const& botName)
+    {
+        return BuildMultiBotStatePayloadForBot(
+            FindMultiBotByName(player, botName), botName);
+    }
+
+    void SendMultiBotStatePackets(
+        Player* player, ChatMsg replyType)
+    {
+        bool sent = false;
+        for (Player* bot : GetMultiBotVisibleBots(player))
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "STATE",
+                BuildMultiBotStatePayloadForBot(
+                    bot, bot->GetName()));
+            sent = true;
+        }
+
+        if (!sent)
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "STATES", "");
+        }
+    }
+
+    bool HandleMultiBotOpcode(
+        Player* player, ChatMsg replyType,
+        std::string const& opcode,
+        std::string const& payload)
+    {
+        std::string const normalized =
+            ToUpperMultiBot(TrimMultiBot(opcode));
+
+        if (normalized == "HELLO")
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "HELLO_ACK",
+                std::string(kMultiBotProtocolVersion)
+                    + kMultiBotSeparator
+                    + kMultiBotBridgeName);
+            return true;
+        }
+
+        if (normalized == "PING")
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "PONG", payload);
+            return true;
+        }
+
+        if (normalized != "GET")
+            return false;
+
+        std::pair<std::string, std::string> const request =
+            SplitMultiBotOnce(payload, kMultiBotSeparator);
+        std::string const requestType =
+            ToUpperMultiBot(TrimMultiBot(request.first));
+
+        if (requestType == "ROSTER")
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "ROSTER",
+                BuildMultiBotRosterPayload(player));
+            return true;
+        }
+
+        if (requestType == "STATE")
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "STATE",
+                BuildMultiBotStatePayload(
+                    player, request.second));
+            return true;
+        }
+
+        if (requestType == "STATES")
+        {
+            SendMultiBotStatePackets(player, replyType);
+            return true;
+        }
+
+        if (requestType == "DETAIL")
+        {
+            SendMultiBotAddonPacket(
+                player, replyType, "DETAIL",
+                BuildMultiBotDetailPayload(
+                    player, request.second));
+            return true;
+        }
+
+        if (requestType == "DETAILS")
+        {
+            SendMultiBotDetailPackets(player, replyType);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool TryHandleMultiBotCompatChat(
+        Player* player, uint32 type, uint32 language,
+        std::string& msg)
+    {
+        if (!IsMultiBotCompatEnabled() || !player)
+            return false;
+
+        std::string payload;
+        if (!TryExtractMultiBotPayload(
+                language, msg, payload))
+            return false;
+
+        if (sLLMChatterConfig
+            && sLLMChatterConfig->IsDebugLog())
+        {
+            LOG_INFO(
+                "module",
+                "LLMChatter: MultiBotCompat RX [{}] type={}",
+                payload, type);
+        }
+
+        std::pair<std::string, std::string> const packet =
+            SplitMultiBotOnce(payload, kMultiBotSeparator);
+        return HandleMultiBotOpcode(
+            player, NormalizeMultiBotReplyType(type),
+            packet.first, packet.second);
     }
 }
 
@@ -708,6 +1211,17 @@ public:
                PLAYERHOOK_ON_MAP_CHANGED,
 
                PLAYERHOOK_ON_TEXT_EMOTE}) {}
+
+    bool OnPlayerCanUseChat(
+        Player* player, uint32 type, uint32 lang,
+        std::string& msg, Group* /*group*/) override
+    {
+        if (TryHandleMultiBotCompatChat(
+                player, type, lang, msg))
+            return false;
+
+        return true;
+    }
 
     // ------------------------------------------------
     // Creature Kill event (group chatter)

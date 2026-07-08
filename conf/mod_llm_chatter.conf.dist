@@ -93,6 +93,19 @@ LLMChatter.Enable = 1
 LLMChatter.DebugLog = 0
 
 #
+#   LLMChatter.MultiBotCompat.Enable
+#       Enable a small server-side compatibility handler for
+#       MultiBot-Chatless addon messages using the MBOT prefix.
+#       This answers the startup handshake, ping, roster, state,
+#       and detail requests so the addon can run without routing
+#       those hidden addon packets through playerbot chat parsing.
+#       Disable this if another module owns the MBOT protocol.
+#       Default: 1 (enabled)
+#       [SERVER]
+#
+LLMChatter.MultiBotCompat.Enable = 1
+
+#
 #   LLMChatter.HealthCheck.Enable
 #       Run a startup preflight diagnostic in the bridge.
 #       It checks the config, DB connection, required tables,
