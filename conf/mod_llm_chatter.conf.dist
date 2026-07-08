@@ -1515,7 +1515,8 @@ LLMChatter.RaidChatter.MoraleCooldown = 60
 #       Ambient guild-channel chatter. When enabled,
 #       online bot guild members occasionally post a
 #       short in-character line to guild chat. Off by
-#       default so existing setups are unaffected.
+#       default because guild chat is still beta, and so
+#       existing setups are unaffected.
 #       Default: 0
 #
 LLMChatter.GuildChatter.Enable = 0
