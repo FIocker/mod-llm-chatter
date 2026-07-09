@@ -351,8 +351,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | ~800 | WorldScript ownership, thin ambient/nearby/delivery/proximity delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
-| `src/LLMChatterGroup.cpp` | 842 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
-| `src/LLMChatterGroupCombat.cpp` | 2531 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, file-local `QueueStateCallout()` |
+| `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
+| `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupInternal.h` | 239 | Shared group internal header: struct definitions (`GroupJoinEntry`, `GroupJoinBatch`, `QuestAcceptEntry`, `QuestAcceptBatch`), extern declarations for all shared cooldown maps, batch containers, mutexes, emote cooldowns, named boss cache; shared helper declarations; domain entry-point declarations; `EmoteTargetType` enum |
 | `src/LLMChatterGroupJoin.cpp` | 877 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
 | `src/LLMChatterGroupEmote.cpp` | 534 | Emote reaction system: `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`, emote static data (mirror map, denylist, combat callouts, contagious set), `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`, `HandleEmoteObserver()`, `EvictEmoteCooldowns()` |
@@ -596,6 +596,12 @@ and delivery code.
 - shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
   `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
   helpers
+- MultiBot-Chatless bridge coexistence. `mod-multibot-bridge` owns the
+  `MBOT` protocol by default. The `LLMChatter.MultiBotCompat.Enable`
+  fallback is disabled by default, so chatter does not consume or block
+  the addon's hidden communication. When enabled, it answers only
+  startup packets (`HELLO`, `PING`, `GET~ROSTER`, `GET~STATE(S)`,
+  `GET~DETAIL(S)`) for installs without the bridge
 - `LoadNamedBossCache()`
 - `CleanupGroupSession()` coordinator
  - thin `LLMChatterGroupPlayerScript` wrappers
@@ -814,6 +820,7 @@ source:
 | C++ nearby scan logic | `src/LLMChatterNearby.cpp`, `src/LLMChatterNearby.h` |
 | C++ world transport/dispatcher logic | `src/LLMChatterWorld.cpp` |
 | C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
+| MultiBot-Chatless `MBOT` bridge coexistence and fallback | `src/LLMChatterGroup.cpp`; debug skip wording in `src/LLMChatterGroupCombat.cpp` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |
 | Screenshot vision capture agent (host-side) | `tools/screenshot_agent.py` |

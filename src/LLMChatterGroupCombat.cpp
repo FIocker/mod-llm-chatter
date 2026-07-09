@@ -38,6 +38,22 @@
 namespace
 {
 
+std::string TrimMultiBotCompat(std::string const& value)
+{
+    size_t start = value.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos)
+        return "";
+
+    size_t end = value.find_last_not_of(" \t\r\n");
+    return value.substr(start, end - start + 1);
+}
+
+bool IsMultiBotAddonPayload(std::string const& msg)
+{
+    std::string const trimmed = TrimMultiBotCompat(msg);
+    return trimmed.rfind("MBOT\t", 0) == 0;
+}
+
 void QueueStateCallout(
     Player* bot, Group* group,
     const char* eventType, uint32 groupId)
@@ -789,12 +805,15 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     if (!player || msg.empty())
         return;
 
-    // Ignore hidden addon traffic (DBM, Questie, ElvUI, ...);
-    // it is real chat tagged LANG_ADDON, not player speech.
+    // Ignore hidden addon traffic. MBOT is owned by
+    // mod-multibot-bridge unless the fallback handler is enabled later.
     if (lang == LANG_ADDON)
     {
-        LogIgnoredAddonChat(
-            player, type, msg, "party");
+        if (!IsMultiBotAddonPayload(msg))
+        {
+            LogIgnoredAddonChat(
+                player, type, msg, "party");
+        }
         return;
     }
 
