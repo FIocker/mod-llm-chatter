@@ -49,7 +49,7 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 
 ### Guild Channel Chatter
 
-* **Guild chatter**: New optional `guild` delivery channel and an ambient guild-chatter subsystem. When `LLMChatter.GuildChatter.Enable` is set, online bot guild members periodically post short in-character lines to guild chat, gated by `GuildChatter.Chance` and `GuildChatter.Cooldown`. Off by default.
+* **Guild chatter**: New optional `guild` delivery channel and an ambient guild-chatter subsystem. When `LLMChatter.GuildChatter.Enable` is set, online bot guild members periodically post short in-character lines to guild chat, gated by `GuildChatter.Chance` and `GuildChatter.Cooldown`. This feature is still in development and remains off by default.
 
 ### 2026-06-19 - Chat-Type Master Toggles & Subsystem Classifier
 
