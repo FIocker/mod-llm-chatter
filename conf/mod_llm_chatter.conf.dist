@@ -93,6 +93,22 @@ LLMChatter.Enable = 1
 LLMChatter.DebugLog = 0
 
 #
+#   LLMChatter.MultiBotCompat.Enable
+#       Enable a small fallback compatibility handler for installs
+#       without mod-multibot-bridge. When enabled, mod-llm-chatter
+#       answers the MultiBot-Chatless startup handshake, ping,
+#       roster, state, and detail MBOT requests.
+#       Leave disabled when mod-multibot-bridge is installed; the
+#       bridge owns the MBOT protocol. mod-llm-chatter still suppresses
+#       its own debug-log noise for MBOT addon traffic when disabled.
+#       Disabled means mod-llm-chatter will not consume or block the
+#       addon's hidden MBOT communication.
+#       Default: 0 (disabled)
+#       [SERVER]
+#
+LLMChatter.MultiBotCompat.Enable = 0
+
+#
 #   LLMChatter.HealthCheck.Enable
 #       Run a startup preflight diagnostic in the bridge.
 #       It checks the config, DB connection, required tables,

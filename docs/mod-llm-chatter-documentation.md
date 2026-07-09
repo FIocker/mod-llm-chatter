@@ -37,6 +37,11 @@ High-level behavior:
   and natural player reply detection
 - in-game addon bridge: `.llmc` command lets the Chatter Companion addon
   read and write bot personality traits and tone from the game UI
+- MultiBot-Chatless bridge coexistence: hidden `MBOT` addon traffic is
+  ignored by chatter logging and left for `mod-multibot-bridge` by
+  default, so chatter does not block the addon's chatless
+  communication. An optional fallback handler remains available for
+  installs without the bridge
 
 ---
 
@@ -359,6 +364,13 @@ Retains core group glue:
 - shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
   `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
   helpers
+- MultiBot-Chatless bridge coexistence. By default,
+  `mod-multibot-bridge` owns `MBOT` packets and mod-llm-chatter only
+  suppresses its own ignored-addon debug log for that hidden protocol.
+  It does not consume or block the addon's communication in this mode.
+  When `LLMChatter.MultiBotCompat.Enable = 1`, a fallback handler
+  answers handshake, ping, roster, state, and detail refreshes for
+  installs without the bridge
 - `CleanupGroupSession()` coordinator
 - named-boss cache
  - thin `LLMChatterGroupPlayerScript` wrappers
@@ -522,6 +534,10 @@ When adding a new Python-only config key:
 2. Add the key to your active server config file
 3. Read it in Python via `config.get('LLMChatter.GroupChatter.KeyName', default)`
 4. No C++ changes needed
+
+Some narrow server-side compatibility switches may be read directly
+through `sConfigMgr` instead of being stored on `LLMChatterConfig`.
+`LLMChatter.MultiBotCompat.Enable` follows that shape.
 
 ---
 
