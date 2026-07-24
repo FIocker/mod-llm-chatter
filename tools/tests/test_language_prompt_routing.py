@@ -45,7 +45,6 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 _install_non_strict_stubs()
 
-import chatter_ambient  # noqa: E402
 import chatter_group_state  # noqa: E402
 import chatter_shared  # noqa: E402
 
@@ -146,6 +145,8 @@ def test_json_helpers_put_language_in_user_and_system_prompts():
     )
     assert "German" in conversation.user_prompt
     assert "German" in conversation.system_prompt
+    assert '"emote"' in conversation.system_prompt
+    assert '"action"' in conversation.system_prompt
     assert "leans against the wall" not in conversation.system_prompt
     assert "configured language" in conversation.system_prompt
 
@@ -175,7 +176,7 @@ def test_farewell_prompt_includes_language_rule():
     assert "German" in captured["prompt"]
 
 
-def test_ambient_json_repair_prompt_includes_language_rule():
+def test_shared_json_repair_prompt_includes_language_rule():
     chatter_shared.set_language("DE")
     prompt = chatter_shared.append_conversation_json_instruction(
         "Write a party exchange.",
@@ -184,12 +185,73 @@ def test_ambient_json_repair_prompt_includes_language_rule():
         allow_action=False,
     )
 
-    repair_prompt = chatter_ambient._build_json_repair_prompt(
-        prompt,
-        ["Aliss", "Rytsen"],
+    repair_prompt = (
+        chatter_shared.build_conversation_json_repair_prompt(
+            prompt,
+            ["Aliss", "Rytsen"],
+        )
     )
 
     assert "German" in repair_prompt
+
+
+def test_message_only_conversation_schema():
+    chatter_shared.set_language("GB")
+    prompt = chatter_shared.append_conversation_json_instruction(
+        "Write a guild exchange.",
+        ["Aliss", "Rytsen"],
+        3,
+        allow_action=False,
+        message_only=True,
+    )
+
+    assert '"speaker"' in prompt.system_prompt
+    assert '"message"' in prompt.system_prompt
+    assert '"emote"' not in prompt.system_prompt
+    assert '"action"' not in prompt.system_prompt
+
+
+def test_conversation_message_count_bounds():
+    original_randint = chatter_shared.random.randint
+    calls = []
+
+    def fake_randint(lower, upper):
+        calls.append((lower, upper))
+        return upper
+
+    chatter_shared.random.randint = fake_randint
+    try:
+        count = (
+            chatter_shared.select_conversation_message_count(
+                3, 2, 4
+            )
+        )
+    finally:
+        chatter_shared.random.randint = original_randint
+
+    assert count == 4
+    assert calls == [(3, 4)]
+
+
+def test_message_only_repair_schema():
+    chatter_shared.set_language("DE")
+    prompt = chatter_shared.append_conversation_json_instruction(
+        "Write a guild exchange.",
+        ["Aliss", "Rytsen"],
+        2,
+        message_only=True,
+    )
+    repair_prompt = (
+        chatter_shared.build_conversation_json_repair_prompt(
+            prompt,
+            ["Aliss", "Rytsen"],
+            message_only=True,
+        )
+    )
+
+    assert "German" in repair_prompt
+    assert '"speaker"' in repair_prompt
+    assert '"message"' in repair_prompt
 
 
 def main() -> int:
@@ -199,7 +261,10 @@ def main() -> int:
         test_unknown_language_warns_and_falls_back,
         test_json_helpers_put_language_in_user_and_system_prompts,
         test_farewell_prompt_includes_language_rule,
-        test_ambient_json_repair_prompt_includes_language_rule,
+        test_shared_json_repair_prompt_includes_language_rule,
+        test_message_only_conversation_schema,
+        test_conversation_message_count_bounds,
+        test_message_only_repair_schema,
     ]
     for test in tests:
         test()

@@ -851,11 +851,17 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         ),
         producer='LLMChatterWorld.cpp',
         priority='filler',
-        description='Ambient guild-channel chatter',
+        description=(
+            'Ambient Guild statement or conversation'
+        ),
         payload_fields={
+            'guild_id': (int, False),
             'guild_name': (str, True),
             'speaker_name': (str, True),
+            'mode': (str, False),
+            'participants': (list, False),
             'guildmates': (str, False),
+            'team': (str, False),
             'zone_id': (int, True),
         },
     ),

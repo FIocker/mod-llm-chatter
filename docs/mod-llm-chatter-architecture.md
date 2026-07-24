@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-04-06 (added command bridge, constants consolidation)
+Last updated: 2026-07-24 (Guild statement/conversation pipeline)
 
 ## Purpose
 
@@ -59,8 +59,8 @@ not just `docker restart`.
 3. Python generates messages and writes them to
    `llm_chatter_messages`.
 4. C++ world tick delivers messages in game.
-5. Party-channel delivery may play text emotes; General/Raid/BG
-   delivery does not.
+5. Party-channel delivery may play text emotes; General, Guild,
+   Raid, and BG delivery does not.
 
 ### Screenshot vision data flow
 
@@ -117,6 +117,35 @@ NPCs, and real players as they move through the world:
 NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID, allowing per-instance entity cooldowns. The
 `ProximityScene` struct tracks active conversations for reply matching.
+
+### Guild chatter data flow
+
+Guild chatter reuses shared conversation mechanics while keeping
+Guild-specific selection and context in their owning layers:
+
+1. `CheckGuildIdleChatter()` in `LLMChatterWorld.cpp` finds live,
+   non-combat guild bots in a guild containing an online real player.
+2. C++ rolls `GuildChatter.ConversationChance`, shuffles the live
+   roster, and selects one statement speaker or two to three
+   conversation participants.
+3. One `guild_idle_chatter` event carries `mode` plus structured
+   participant GUID, name, zone, and map data. Legacy single-speaker
+   payloads remain valid.
+4. `chatter_guild.py` selects one RP topic and one event-level zone
+   policy, then builds either the existing statement prompt or a
+   message-only conversation prompt.
+5. Independent bridge RNG may mark zero, one, or several non-opening
+   lines to name contextually relevant earlier speakers. The model
+   selects the connection; deterministic cleanup inserts missing
+   names when a selected line ignores the cue.
+6. Conversation output must contain every selected speaker. Invalid
+   JSON gets one repair attempt, then falls back to a primary-speaker
+   statement.
+7. Accepted lines use shared dynamic delays and are inserted with the
+   actual speaker GUID, `channel='guild'`, and
+   `owner_subsystem='guild'`.
+8. `LLMChatterDelivery.cpp` broadcasts each row through the existing
+   Guild delivery branch.
 
 ## System Prompt Architecture
 
@@ -403,6 +432,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/llm_chatter_bridge.py` | Main loops, event claiming, registry-driven routing, worker orchestration |
 | `tools/chatter_event_registry.py` | Central Python event registry: handler module/function resolution, producer notes, payload field docs, dead-event tracking |
 | `tools/chatter_ambient.py` | Ambient statement/conversation generation |
+| `tools/chatter_guild.py` | Guild prompts and insert orchestration |
 
 ### Group domain
 
@@ -419,7 +449,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_shared.py` | Compatibility facade and residual shared helpers only: `PromptParts(str)` class for system/user prompt separation, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode), `should_include_action()` (single RNG roll for narrator action gating at conversation delivery sites), `resolve_gender()` (maps numeric gender 0/1 to male/female with DB fallback), `build_bot_identity()` (name/race/class/gender identity string used by all prompt builders). Avoid adding new domain-specific handler logic here unless it is truly cross-domain. |
+| `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition |
 | `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, `cleanup_stale_groups()`, `cleanup_all_session_data()` |

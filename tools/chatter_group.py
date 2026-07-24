@@ -71,6 +71,7 @@ from chatter_shared import (
     get_player_zone,
     strip_conversation_actions,
     append_conversation_json_instruction,
+    select_conversation_message_count,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -3049,7 +3050,9 @@ def build_idle_conversation_prompt(
     is_rp = (mode == 'roleplay')
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
-    msg_count = 4
+    msg_count = select_conversation_message_count(
+        num_bots, 4, 4
+    )
 
     # --------------------------------------------------
     # LEAN MEMORY PATH — when any bot has memories,

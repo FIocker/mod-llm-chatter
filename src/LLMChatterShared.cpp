@@ -1343,6 +1343,25 @@ void SetEventCooldown(
     cooldownCache[cooldownKey] = time(nullptr);
 }
 
+uint32 SelectConversationParticipantCount(
+    uint32 available, uint32 maximum)
+{
+    if (!available)
+        return 0;
+
+    uint32 capped = std::min(
+        std::min(available, maximum), 4u);
+    if (capped < 2)
+        return 1;
+
+    uint32 roll = urand(1, 100);
+    if (roll <= 50 || capped == 2)
+        return 2;
+    if (roll <= 80 || capped == 3)
+        return 3;
+    return 4;
+}
+
 void LogIgnoredAddonChat(
     Player const* player, uint32 type,
     std::string const& msg, char const* source)

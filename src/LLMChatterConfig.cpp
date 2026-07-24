@@ -7,6 +7,8 @@
 #include "Config.h"
 #include "Log.h"
 
+#include <algorithm>
+
 namespace
 {
 template <typename T>
@@ -588,6 +590,20 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.GuildChatter."
             "ScanInterval", 30);
+    _guildChatterConversationChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "ConversationChance", 50),
+            100u);
+    _guildChatterMaxParticipants =
+        std::max(
+            2u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MaxParticipants", 3),
+                3u));
 
     // Zone intrusion alerts
     _zoneIntrusionEnable =

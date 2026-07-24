@@ -29,6 +29,7 @@ from chatter_shared import (
     build_anti_repetition_context,
     append_json_instruction,
     append_conversation_json_instruction,
+    select_conversation_message_count,
     get_subzone_name, get_subzone_lore,
 )
 
@@ -1095,7 +1096,9 @@ def build_plain_conversation_prompt(
 
     min_msgs = bot_count
     max_msgs = bot_count + 3
-    msg_count = random.randint(min_msgs, max_msgs)
+    msg_count = select_conversation_message_count(
+        bot_count, min_msgs, max_msgs
+    )
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
@@ -1416,7 +1419,9 @@ def build_gossip_conversation_prompt(
             f"Creative twist for this conversation: {twist}"
         )
 
-    msg_count = random.randint(bot_count, bot_count + 3)
+    msg_count = select_conversation_message_count(
+        bot_count, bot_count, bot_count + 3
+    )
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
@@ -1537,7 +1542,9 @@ def build_quest_conversation_prompt(
 
     min_msgs = bot_count
     max_msgs = bot_count + 3
-    msg_count = random.randint(min_msgs, max_msgs)
+    msg_count = select_conversation_message_count(
+        bot_count, min_msgs, max_msgs
+    )
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
@@ -1689,7 +1696,9 @@ def build_loot_conversation_prompt(
 
     min_msgs = bot_count
     max_msgs = bot_count + 2
-    msg_count = random.randint(min_msgs, max_msgs)
+    msg_count = select_conversation_message_count(
+        bot_count, min_msgs, max_msgs
+    )
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
@@ -1947,7 +1956,9 @@ def build_event_conversation_prompt(
 
     min_msgs = bot_count
     max_msgs = bot_count + 2
-    msg_count = random.randint(min_msgs, max_msgs)
+    msg_count = select_conversation_message_count(
+        bot_count, min_msgs, max_msgs
+    )
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
@@ -2417,7 +2428,9 @@ def build_spell_conversation_prompt(
 
     min_msgs = bot_count
     max_msgs = bot_count + 2
-    msg_count = random.randint(min_msgs, max_msgs)
+    msg_count = select_conversation_message_count(
+        bot_count, min_msgs, max_msgs
+    )
     mood_sequence = (
         generate_conversation_mood_sequence(
             msg_count, mode
@@ -2754,7 +2767,9 @@ def build_trade_conversation_prompt(
 
     min_msgs = bot_count
     max_msgs = bot_count + 2
-    msg_count = random.randint(min_msgs, max_msgs)
+    msg_count = select_conversation_message_count(
+        bot_count, min_msgs, max_msgs
+    )
     mood_sequence = (
         generate_conversation_mood_sequence(
             msg_count, mode

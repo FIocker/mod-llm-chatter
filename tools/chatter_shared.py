@@ -1491,12 +1491,47 @@ def append_conversation_json_instruction(
     bot_names: List[str],
     msg_count: int,
     allow_action: bool = True,
+    message_only: bool = False,
 ) -> str:
     """Append conversation JSON array instruction.
 
-    Conversation prompts return an array where each
-    item has speaker/message/emote/action fields.
+    By default each item has speaker/message/emote/action
+    fields. Guild chat uses message_only to request spoken
+    text without action or emote fields.
     """
+    lang_rule = get_language_rule()
+    if lang_rule:
+        prompt = prompt + lang_rule
+
+    if message_only:
+        example_msgs = ',\n  '.join(
+            [
+                (
+                    f'{{"speaker": "{name}", '
+                    f'"message": "..."}}'
+                )
+                for name in bot_names
+            ]
+        )
+        block = (
+            "\n\nJSON rules: Use double quotes, escape "
+            "quotes/newlines, no trailing commas, "
+            "no code fences.\n"
+            f"\nRespond with EXACTLY {msg_count} messages "
+            "in JSON:\n"
+            "[\n"
+            f"  {example_msgs}\n"
+            "]\n"
+            "Each object must contain only \"speaker\" "
+            "and \"message\".\n"
+            "ONLY the JSON array, nothing else.\n"
+            "CRITICAL: Follow the Length instruction "
+            "in the prompt exactly â€” never exceed the "
+            "stated character limit."
+            f"{lang_rule}"
+        )
+        return PromptParts(prompt, block)
+
     # When actions are enabled, every message MUST
     # include an action — strip_conversation_actions()
     # enforces ActionChance per-message post-parse.
@@ -1561,9 +1596,6 @@ def append_conversation_json_instruction(
         ]
     )
 
-    lang_rule = get_language_rule()
-    if lang_rule:
-        prompt = prompt + lang_rule
     block = (
         f"\n\n{emote_rule}"
         f"{action_text}\n"
@@ -1580,6 +1612,50 @@ def append_conversation_json_instruction(
         f"{lang_rule}"
     )
     return PromptParts(prompt, block)
+
+
+def select_conversation_message_count(
+    participant_count: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    """Select a bounded conversation length.
+
+    A conversation cannot contain fewer messages than
+    participants because every selected speaker must be
+    able to contribute at least once.
+    """
+    participants = max(1, int(participant_count))
+    lower = max(participants, int(minimum))
+    upper = max(lower, int(maximum))
+    return random.randint(lower, upper)
+
+
+def build_conversation_json_repair_prompt(
+    prompt: str,
+    bot_names: List[str],
+    message_only: bool = False,
+) -> str:
+    """Build the shared one-attempt conversation repair prompt."""
+    msg_count = extract_conversation_msg_count(prompt)
+    repair_prompt = (
+        "Your previous output was invalid JSON. "
+        "Output ONLY a JSON array of "
+        f"{msg_count if msg_count else 'the required number of'} "
+        "messages with the speakers: "
+        f"{', '.join(bot_names)}. Use double quotes, "
+        "escape quotes/newlines, no trailing commas, "
+        "no code fences."
+    )
+    if message_only:
+        repair_prompt += (
+            " Each object must contain only "
+            "\"speaker\" and \"message\"."
+        )
+    lang_rule = get_language_rule()
+    if lang_rule:
+        repair_prompt += lang_rule
+    return repair_prompt
 
 
 # =============================================================================

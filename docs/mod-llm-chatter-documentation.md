@@ -20,6 +20,7 @@ database.
 High-level behavior:
 
 - ambient General-channel chatter in the open world
+- ambient Guild statements and two- or three-bot conversations
 - reactive party chatter for grouped bots
 - General-channel reactions to real player chat
 - world event chatter for weather, holidays, transports, and nearby
@@ -80,7 +81,8 @@ After Python writes the message rows, C++ delivers them in game on the
 world tick.
 
 Party channel may play text emotes.
-General, raid, and battleground delivery do not play text emotes.
+General, Guild, raid, and battleground delivery do not play text
+emotes.
 
 ---
 
@@ -2007,6 +2009,114 @@ Migration `20260403_proximity_chatter.sql` adds two columns to
   proximity scene tracking
 
 Base schema `00000000_llm_chatter_tables.sql` updated to match.
+
+---
+
+## 13r. Guild Chat Statements and Conversations
+
+Guild chatter is an optional, RP-only ambient channel. It remains
+disabled by default.
+
+### Trigger and participant ownership
+
+`CheckGuildIdleChatter()` in `LLMChatterWorld.cpp` scans guilds that
+contain an online real player. Eligible bot members must be online,
+in world, alive, finished loading, and out of combat.
+
+After the normal Guild trigger chance and cooldown gates:
+
+1. C++ rolls `GuildChatter.ConversationChance`.
+2. A statement selects one bot.
+3. A conversation selects two or three unique bots, limited by
+   `GuildChatter.MaxParticipants`.
+4. The weighted shared selector gives two- and three-speaker
+   conversations equal probability when at least three bots exist.
+5. Fewer than two eligible bots always produces a statement.
+
+The event remains `guild_idle_chatter`. New payloads include:
+
+- `guild_id`
+- `mode` (`statement` or `conversation`)
+- `participants`, with GUID, name, zone ID, and map ID
+- the existing primary `subject_guid` and `subject_name`
+- Guild name, other online guildmates, faction team, and primary zone
+
+Rows queued before this feature that lack `mode` and `participants`
+are interpreted as legacy statements.
+
+### Topic and prompt policy
+
+`chatter_guild.py` selects one entry from
+`GUILD_CHAT_TOPICS_RP` for the whole event. A single
+`GuildChatter.ZoneNameChance` roll also applies to the whole event.
+
+Guild speakers may be in different zones. The prompt receives each
+selected speaker's live location and explicitly forbids physical
+co-presence unless every speaker has the same zone and map. When the
+zone roll wins, only the primary speaker's zone may ground the
+exchange. Otherwise, current locations and immediate surroundings
+must not be mentioned.
+
+Conversation prompts use the shared message-only JSON contract.
+Every object contains only `speaker` and `message`; Guild rows never
+request or insert actions or emotes.
+
+Each non-opening line independently rolls
+`GuildChatter.ParticipantReferenceChance`. Selected lines must
+naturally name an earlier speaker whose point they answer. The model
+may choose any contextually relevant earlier speaker rather than
+always targeting the immediately previous line. A smaller
+`GuildChatter.MultiReferenceChance` permits one line to address two
+earlier speakers. `GuildChatter.MaxReferenceLines` prevents the
+generated exchange from becoming name-heavy.
+
+After parsing, the bridge accepts any earlier-speaker combination the
+model selected. If a selected line omits the required number of names,
+cleanup randomly selects missing valid earlier speakers and adds them
+as vocatives. Conversations whose RNG did not select a reference line
+remain unconstrained, including any natural references written by the
+model itself.
+
+### Validation, fallback, and pacing
+
+The bridge parses through `parse_conversation_response()` and accepts
+only selected speaker names. A valid conversation must contain at
+least two cleaned lines and every selected participant must speak.
+
+Invalid output receives one shared JSON repair attempt. If it remains
+invalid, the bridge calls the existing statement generator for the
+primary speaker using the same topic and zone decision. The event is
+marked only after the conversation or fallback finishes, so partial
+conversations are never inserted.
+
+Accepted lines:
+
+- retain the original event ID
+- use increasing sequence values
+- start at a two-second delay
+- add `calculate_dynamic_delay()` for each later line
+- use the actual speaker GUID
+- insert with `channel='guild'` and
+  `owner_subsystem='guild'`
+
+One whole exchange consumes one existing per-Guild cooldown.
+
+### Guild configuration
+
+| Key | Default | Owner | Purpose |
+|-----|---------|-------|---------|
+| `Enable` | 0 | Server | Master Guild chatter toggle |
+| `Chance` | 15 | Server | Trigger chance per eligible scan |
+| `Cooldown` | 300 | Server | Seconds between Guild events |
+| `ScanInterval` | 30 | Server | Seconds between Guild scans |
+| `ConversationChance` | 50 | Server | Conversation vs statement |
+| `MaxParticipants` | 3 | Server | Conversation cap, clamped to 2-3 |
+| `MaxTokens` | 200 | Bridge | Base generation token budget |
+| `MaxConversationLines` | 4 | Bridge | Maximum conversation lines |
+| `ParticipantReferenceChance` | 25 | Bridge | Per-reply name-reference chance |
+| `MultiReferenceChance` | 15 | Bridge | Conditional two-name chance |
+| `MaxReferenceLines` | 2 | Bridge | Forced reference-line cap |
+| `ZoneNameChance` | 20 | Bridge | Primary-zone mention chance |
 
 ---
 

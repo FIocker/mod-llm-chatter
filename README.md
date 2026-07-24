@@ -49,7 +49,13 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 
 ### Guild Channel Chatter
 
-* **Guild chatter**: New optional `guild` delivery channel and an ambient guild-chatter subsystem. When `LLMChatter.GuildChatter.Enable` is set, online bot guild members periodically post short in-character lines to guild chat, gated by `GuildChatter.Chance` and `GuildChatter.Cooldown`. This feature is still in development and remains off by default.
+* **Guild chatter**: Optional ambient Guild statements and
+  two- or three-bot conversations. C++ selects live participants;
+  the bridge gives the exchange one RP subject and cross-zone context,
+  adds irregular participant-name references when useful, then
+  delivers naturally staggered Guild lines. It is gated by
+  `GuildChatter.Chance`, `ConversationChance`, and `Cooldown`, and
+  remains off by default.
 
 ### 2026-06-19 - Chat-Type Master Toggles & Subsystem Classifier
 

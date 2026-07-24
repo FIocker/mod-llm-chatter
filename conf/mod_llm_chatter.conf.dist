@@ -1540,14 +1540,14 @@ LLMChatter.GuildChatter.Enable = 0
 #
 #   LLMChatter.GuildChatter.Chance
 #       Percent chance (1-100) that an eligible guild
-#       produces a line on each check.
+#       produces a statement or conversation on each check.
 #       Default: 15
 #
 LLMChatter.GuildChatter.Chance = 15
 
 #
 #   LLMChatter.GuildChatter.Cooldown
-#       Minimum seconds between guild chatter lines for
+#       Minimum seconds between Guild chatter events for
 #       the same guild.
 #       Default: 300
 #
@@ -1565,6 +1565,24 @@ LLMChatter.GuildChatter.Cooldown = 300
 LLMChatter.GuildChatter.ScanInterval = 30
 
 #
+#   LLMChatter.GuildChatter.ConversationChance
+#       Percent chance (0-100) that an eligible Guild
+#       trigger becomes a two- or three-speaker
+#       conversation instead of one statement.
+#       Requires at least two eligible guild bots.
+#       Default: 50
+#
+LLMChatter.GuildChatter.ConversationChance = 50
+
+#
+#   LLMChatter.GuildChatter.MaxParticipants
+#       Maximum Guild conversation speakers. Supported
+#       range is 2-3; values outside it are clamped.
+#       Default: 3
+#
+LLMChatter.GuildChatter.MaxParticipants = 3
+
+#
 ###############################################################################
 # GUILD CHATTER PROMPT TUNING [BRIDGE] - read by the Python chatter bridge, NOT the
 # worldserver. `.reload config` does NOT affect this key; restart the
@@ -1572,7 +1590,9 @@ LLMChatter.GuildChatter.ScanInterval = 30
 ###############################################################################
 #
 #   LLMChatter.GuildChatter.MaxTokens
-#       Output token budget per guild line. Reasoning
+#       Base output token budget per Guild generation.
+#       Conversations scale this by participant count,
+#       capped at 1000 tokens. Reasoning
 #       models spend part of this budget thinking before
 #       emitting text, so raise it (e.g. 2000-3000) if
 #       you use one and see empty replies.
@@ -1581,13 +1601,50 @@ LLMChatter.GuildChatter.ScanInterval = 30
 LLMChatter.GuildChatter.MaxTokens = 200
 
 #
+#   LLMChatter.GuildChatter.MaxConversationLines
+#       Maximum lines in a Guild conversation. The
+#       minimum is the participant count so every
+#       selected speaker can contribute at least once.
+#       Default: 4
+#
+LLMChatter.GuildChatter.MaxConversationLines = 4
+
+#
+#   LLMChatter.GuildChatter.ParticipantReferenceChance
+#       Independent percent chance (0-100) for each
+#       non-opening Guild conversation line to naturally
+#       name one or more earlier speakers. Zero, one, or
+#       several reference lines may occur.
+#       Default: 25
+#
+LLMChatter.GuildChatter.ParticipantReferenceChance = 25
+
+#
+#   LLMChatter.GuildChatter.MultiReferenceChance
+#       Conditional percent chance (0-100) that a selected
+#       reference line names two earlier speakers when at
+#       least two valid speakers are available.
+#       Default: 15
+#
+LLMChatter.GuildChatter.MultiReferenceChance = 15
+
+#
+#   LLMChatter.GuildChatter.MaxReferenceLines
+#       Maximum number of RNG-selected reference lines in
+#       one Guild conversation. Spontaneous model-written
+#       references are not removed.
+#       Default: 2
+#
+LLMChatter.GuildChatter.MaxReferenceLines = 2
+
+#
 #   LLMChatter.GuildChatter.ZoneNameChance
-#       Percent chance (0-100) that a guild line is told to
-#       name the speaker's current zone. Guild chat reaches
+#       Percent chance (0-100) that a Guild event may name
+#       the primary speaker's current zone. Guild chat reaches
 #       guildmates scattered across other zones, so a bot
 #       saying "this swamp" is meaningless to them. The model
 #       cannot be trusted to self-pace this, so the decision
-#       is made per-line by this RNG roll: on a hit the prompt
+#       is made once per event: on a hit the prompt
 #       asks the bot to work the zone name in; on a miss the
 #       prompt forbids referencing the location at all.
 #       Set 0 to never name, 100 to always name.

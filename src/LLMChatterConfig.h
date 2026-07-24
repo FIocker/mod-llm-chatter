@@ -253,6 +253,8 @@ public:
     uint32 _guildChatterChance{15};
     uint32 _guildChatterCooldown{300};
     uint32 _guildChatterScanInterval{30};
+    uint32 _guildChatterConversationChance{50};
+    uint32 _guildChatterMaxParticipants{3};
 
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;
