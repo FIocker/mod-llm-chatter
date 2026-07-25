@@ -899,7 +899,7 @@ LLMChatter.GroupChatter.IdleCheckInterval = 30
 #   LLMChatter.GroupChatter.IdleChance
 #       Percent chance (0-100) per check that bots start
 #       chatting during downtime.
-#       Default: 20
+#       Default: 15
 #
 LLMChatter.GroupChatter.IdleChance = 15
 
@@ -908,7 +908,7 @@ LLMChatter.GroupChatter.IdleChance = 15
 #       Chance (0-100) that party idle chatter is a multi-bot
 #       conversation instead of a single statement. Requires
 #       2+ bots in the group.
-#       Default: 70
+#       Default: 50
 #
 LLMChatter.GroupChatter.ConversationBias = 50
 
@@ -1530,24 +1530,23 @@ LLMChatter.RaidChatter.MoraleCooldown = 60
 #   LLMChatter.GuildChatter.Enable
 #       Ambient guild-channel chatter. When enabled,
 #       online bot guild members occasionally post a
-#       short in-character line to guild chat. Off by
-#       default because guild chat is still beta, and so
-#       existing setups are unaffected.
-#       Default: 0
+#       short in-character line to guild chat. Enabled by
+#       default so guilds feel active immediately.
+#       Default: 1
 #
-LLMChatter.GuildChatter.Enable = 0
+LLMChatter.GuildChatter.Enable = 1
 
 #
 #   LLMChatter.GuildChatter.Chance
 #       Percent chance (1-100) that an eligible guild
-#       produces a line on each check.
+#       produces a statement or conversation on each check.
 #       Default: 15
 #
 LLMChatter.GuildChatter.Chance = 15
 
 #
 #   LLMChatter.GuildChatter.Cooldown
-#       Minimum seconds between guild chatter lines for
+#       Minimum seconds between Guild chatter events for
 #       the same guild.
 #       Default: 300
 #
@@ -1565,6 +1564,106 @@ LLMChatter.GuildChatter.Cooldown = 300
 LLMChatter.GuildChatter.ScanInterval = 30
 
 #
+#   LLMChatter.GuildChatter.ConversationChance
+#       Percent chance (0-100) that an eligible Guild
+#       trigger becomes a two- or three-speaker
+#       conversation instead of one statement.
+#       Requires at least two eligible guild bots.
+#       Default: 50
+#
+LLMChatter.GuildChatter.ConversationChance = 50
+
+#
+#   LLMChatter.GuildChatter.MaxParticipants
+#       Maximum Guild conversation speakers. Supported
+#       range is 2-3; values outside it are clamped.
+#       Default: 3
+#
+LLMChatter.GuildChatter.MaxParticipants = 3
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.Enable
+#       When enabled, a real player's Guild message
+#       always queues at least one eligible bot reply.
+#       Response shape remains probabilistic.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PlayerReplies.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.DebounceSeconds
+#       Short collection window for rapid consecutive
+#       player messages. New turns supersede undelivered
+#       continuation lines from the previous turn.
+#       Default: 2
+#
+LLMChatter.GuildChatter.PlayerReplies.DebounceSeconds = 2
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.IdleSuppressionSeconds
+#       Prevent ambient Guild chatter from interrupting a
+#       recent player-driven exchange.
+#       Default: 90
+#
+LLMChatter.GuildChatter.PlayerReplies.IdleSuppressionSeconds = 90
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.MaxCandidates
+#       Maximum live Guild bots passed to the bridge for
+#       addressed-bot and responder selection.
+#       Default: 12
+#
+LLMChatter.GuildChatter.PlayerReplies.MaxCandidates = 12
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.Enable
+#       Greet a real guild member after a full character
+#       login. The greeting is cancelled if the player
+#       speaks first, logs out, or changes Guild.
+#       Default: 1
+#
+LLMChatter.GuildChatter.LoginGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.Chance
+#       Chance (0-100) to schedule a greeting attempt.
+#       At least one eligible bot is selected on success.
+#       Default: 100
+#
+LLMChatter.GuildChatter.LoginGreeting.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.QuickChance
+#   LLMChatter.GuildChatter.LoginGreeting.BusyChance
+#       Weighted initial delay bands. Quick uses 2-5
+#       seconds; Busy uses 25-45 seconds; the remainder
+#       uses the ordinary 8-20 second band. If the sum
+#       exceeds 100, BusyChance is clamped.
+#       Defaults: Quick = 20, Busy = 25
+#
+LLMChatter.GuildChatter.LoginGreeting.QuickChance = 20
+LLMChatter.GuildChatter.LoginGreeting.BusyChance = 25
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.RetryInterval
+#   LLMChatter.GuildChatter.LoginGreeting.ReadinessTimeout
+#       Retry interval and total bounded wait when Guild
+#       bots are still loading. Values are seconds;
+#       ReadinessTimeout is clamped to at least 45.
+#       Defaults: RetryInterval = 5, ReadinessTimeout = 90
+#
+LLMChatter.GuildChatter.LoginGreeting.RetryInterval = 5
+LLMChatter.GuildChatter.LoginGreeting.ReadinessTimeout = 90
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.MaxCandidates
+#       Maximum live Guild bots passed to the bridge for
+#       greeting responder selection.
+#       Default: 12
+#
+LLMChatter.GuildChatter.LoginGreeting.MaxCandidates = 12
+
+#
 ###############################################################################
 # GUILD CHATTER PROMPT TUNING [BRIDGE] - read by the Python chatter bridge, NOT the
 # worldserver. `.reload config` does NOT affect this key; restart the
@@ -1572,7 +1671,9 @@ LLMChatter.GuildChatter.ScanInterval = 30
 ###############################################################################
 #
 #   LLMChatter.GuildChatter.MaxTokens
-#       Output token budget per guild line. Reasoning
+#       Base output token budget per Guild generation.
+#       Conversations scale this by participant count,
+#       capped at 1000 tokens. Reasoning
 #       models spend part of this budget thinking before
 #       emitting text, so raise it (e.g. 2000-3000) if
 #       you use one and see empty replies.
@@ -1581,13 +1682,232 @@ LLMChatter.GuildChatter.ScanInterval = 30
 LLMChatter.GuildChatter.MaxTokens = 200
 
 #
+#   LLMChatter.GuildChatter.MaxConversationLines
+#       Maximum lines in a Guild conversation. The
+#       minimum is the participant count so every
+#       selected speaker can contribute at least once.
+#       Default: 4
+#
+LLMChatter.GuildChatter.MaxConversationLines = 4
+
+#
+#   LLMChatter.GuildChatter.HistoryContextChance
+#       Chance (0-100) that an autonomous Guild statement
+#       or conversation receives recent visible Guild
+#       history as optional continuity context. One roll
+#       applies to the whole event, including repair and
+#       statement fallback.
+#       Default: 35
+#
+LLMChatter.GuildChatter.HistoryContextChance = 35
+
+#
+#   LLMChatter.GuildChatter.HistoryContextMessages
+#       Maximum recent visible Guild lines included after
+#       a successful HistoryContextChance roll. The topic
+#       remains the creative direction; history is ignored
+#       when it does not connect naturally.
+#       Default: 15
+#
+LLMChatter.GuildChatter.HistoryContextMessages = 15
+
+#
+#   LLMChatter.GuildChatter.ParticipantReferenceChance
+#       Independent percent chance (0-100) for each
+#       non-opening Guild conversation line to naturally
+#       name one or more earlier speakers. Zero, one, or
+#       several reference lines may occur.
+#       Default: 25
+#
+LLMChatter.GuildChatter.ParticipantReferenceChance = 25
+
+#
+#   LLMChatter.GuildChatter.MultiReferenceChance
+#       Conditional percent chance (0-100) that a selected
+#       reference line names two earlier speakers when at
+#       least two valid speakers are available.
+#       Default: 15
+#
+LLMChatter.GuildChatter.MultiReferenceChance = 15
+
+#
+#   LLMChatter.GuildChatter.MaxReferenceLines
+#       Maximum number of RNG-selected reference lines in
+#       one Guild conversation. Spontaneous model-written
+#       references are not removed.
+#       Default: 2
+#
+LLMChatter.GuildChatter.MaxReferenceLines = 2
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance
+#       Chance (0-100) that two or three Guild bots greet
+#       the player instead of the usual single greeting.
+#       Default: 20
+#
+LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance = 20
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.MaxResponders
+#       Maximum greeting bots. Supported range is 1-3.
+#       Default: 3
+#
+LLMChatter.GuildChatter.LoginGreeting.MaxResponders = 3
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance
+#       Chance (0-100) that the primary greeter naturally
+#       addresses the player by name.
+#       Default: 60
+#
+LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance = 60
+
+#
+#   LLMChatter.GuildChatter.LoginGreeting.MaxCharacters
+#       Hard character cap for each short greeting.
+#       Supported range is 40-150.
+#       Default: 100
+#
+LLMChatter.GuildChatter.LoginGreeting.MaxCharacters = 100
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.MultiReplyChance
+#       Chance (0-100) that two or three bots give
+#       independent reactions to the player after the
+#       conversation roll fails.
+#       Default: 15
+#
+LLMChatter.GuildChatter.PlayerReplies.MultiReplyChance = 15
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.MultiAddressedBonus
+#       Additional multi-reply chance (0-100) when the
+#       player clearly addresses several guildmates. This
+#       is a boost, not a guarantee, so one reply remains
+#       the most common outcome.
+#       Default: 15
+#
+LLMChatter.GuildChatter.PlayerReplies.MultiAddressedBonus = 15
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.ConversationChance
+#       Chance (0-100) that the player's message starts a
+#       genuine multi-bot conversation. This is evaluated
+#       before MultiReplyChance.
+#       Default: 20
+#
+LLMChatter.GuildChatter.PlayerReplies.ConversationChance = 20
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.MaxResponders
+#       Maximum responding bots for player-driven Guild
+#       exchanges. Supported range is 1-3.
+#       Default: 3
+#
+LLMChatter.GuildChatter.PlayerReplies.MaxResponders = 3
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.PlayerNameChance
+#       Chance (0-100) that the primary reply naturally
+#       addresses the player by name.
+#       Default: 35
+#
+LLMChatter.GuildChatter.PlayerReplies.PlayerNameChance = 35
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.CallbackChance
+#       Chance (0-100) to make a subtle, relevant callback
+#       to an earlier interaction from this login session.
+#       Default: 25
+#
+LLMChatter.GuildChatter.PlayerReplies.CallbackChance = 25
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.FollowupQuestionChance
+#       Chance (0-100) that one responder asks a natural
+#       follow-up question when the context supports it.
+#       Default: 20
+#
+LLMChatter.GuildChatter.PlayerReplies.FollowupQuestionChance = 20
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.RecentSpeakerPenalty
+#       Percent weight reduction for bots that spoke
+#       recently. Addressed bots bypass this soft penalty.
+#       Default: 60
+#
+LLMChatter.GuildChatter.PlayerReplies.RecentSpeakerPenalty = 60
+
+#
+#   LLMChatter.GuildChatter.PlayerReplies.FirstDelayMin
+#   LLMChatter.GuildChatter.PlayerReplies.FirstDelayMax
+#       Additional bridge-side delay range before the first
+#       reply. Later lines use the full shared reading,
+#       typing, and distraction pacing.
+#       Defaults: 8 / 20
+#
+LLMChatter.GuildChatter.PlayerReplies.FirstDelayMin = 8
+LLMChatter.GuildChatter.PlayerReplies.FirstDelayMax = 20
+
+#
+#   LLMChatter.GuildChatter.SessionMemory.Enable
+#       Keep a per-player Guild interaction memory for the
+#       current login session. Login and logout clear it.
+#       Default: 1
+#
+LLMChatter.GuildChatter.SessionMemory.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.SessionMemory.SummaryThresholdChars
+#       Summarize older unsummarized interaction lines when
+#       their combined size reaches this threshold.
+#       Default: 3500
+#
+LLMChatter.GuildChatter.SessionMemory.SummaryThresholdChars = 3500
+
+#
+#   LLMChatter.GuildChatter.SessionMemory.SummaryMaxInputChars
+#       Maximum older-transcript characters sent in one
+#       compaction call. Protects smaller local contexts
+#       after repeated summary failures.
+#       Default: 8000
+#
+LLMChatter.GuildChatter.SessionMemory.SummaryMaxInputChars = 8000
+
+#
+#   LLMChatter.GuildChatter.SessionMemory.KeepRecentMessages
+#       Latest visible Guild lines retained verbatim in
+#       player-reply prompts: player messages,
+#       player-driven replies, ambient statements, and
+#       ambient conversations. Autonomous Guild chatter
+#       has a separate probabilistic raw-history setting.
+#       Default: 15
+#
+LLMChatter.GuildChatter.SessionMemory.KeepRecentMessages = 15
+
+#
+#   LLMChatter.GuildChatter.SessionMemory.SummaryMaxTokens
+#       Output budget for the provider-neutral summary call.
+#       The configured chatter provider and model are reused.
+#       Default: 300
+#
+LLMChatter.GuildChatter.SessionMemory.SummaryMaxTokens = 300
+
+#
+#   LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars
+#       Maximum stored rolling-summary length.
+#       Default: 1200
+#
+LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
+
+#
 #   LLMChatter.GuildChatter.ZoneNameChance
-#       Percent chance (0-100) that a guild line is told to
-#       name the speaker's current zone. Guild chat reaches
+#       Percent chance (0-100) that a Guild event may name
+#       the primary speaker's current zone. Guild chat reaches
 #       guildmates scattered across other zones, so a bot
 #       saying "this swamp" is meaningless to them. The model
 #       cannot be trusted to self-pace this, so the decision
-#       is made per-line by this RNG roll: on a hit the prompt
+#       is made once per event: on a hit the prompt
 #       asks the bot to work the zone name in; on a miss the
 #       prompt forbids referencing the location at all.
 #       Set 0 to never name, 100 to always name.

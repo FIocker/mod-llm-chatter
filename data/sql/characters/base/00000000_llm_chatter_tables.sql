@@ -79,7 +79,9 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'proximity_player_conversation',
         'bot_backstory_regen',
         'bot_tone_regen',
-        'guild_idle_chatter'
+        'guild_idle_chatter',
+        'guild_player_message',
+        'guild_login_greeting'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -231,6 +233,48 @@ CREATE TABLE IF NOT EXISTS `llm_general_chat_history` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_zone_id` (`zone_id`),
     INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Per-player Guild Chat memory for one login session.
+CREATE TABLE IF NOT EXISTS `llm_guild_chat_sessions` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `player_guid` INT UNSIGNED NOT NULL,
+    `player_name` VARCHAR(64) NOT NULL,
+    `guild_id` INT UNSIGNED NOT NULL,
+    `turn_id` INT UNSIGNED NOT NULL DEFAULT 0,
+    `summary` TEXT DEFAULT NULL,
+    `summarized_through_id` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    `started_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_activity_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_guild_session_player` (`player_guid`),
+    KEY `idx_guild_session_guild` (`guild_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Delivered Guild lines visible during each player's login session.
+CREATE TABLE IF NOT EXISTS `llm_guild_session_history` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `session_id` BIGINT UNSIGNED NOT NULL,
+    `guild_id` INT UNSIGNED NOT NULL,
+    `speaker_guid` INT UNSIGNED NOT NULL DEFAULT 0,
+    `speaker_name` VARCHAR(64) NOT NULL,
+    `is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+    `source_kind` ENUM(
+        'player',
+        'reply',
+        'ambient'
+    ) NOT NULL,
+    `source_event_id` INT UNSIGNED DEFAULT NULL,
+    `message` TEXT NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `delivered_at` TIMESTAMP NULL DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `idx_guild_history_session`
+        (`session_id`, `id`),
+    KEY `idx_guild_history_guild`
+        (`guild_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Pre-cached LLM responses for instant combat delivery

@@ -1090,16 +1090,8 @@ void TryTriggerChatter()
         uint32 botCount = 1;
         if (isConversation)
         {
-            uint32 maxBots = std::min(
-                static_cast<uint32>(bots.size()),
-                4u);
-            uint32 roll = urand(1, 100);
-            if (roll <= 50 || maxBots == 2)
-                botCount = 2;
-            else if (roll <= 80 || maxBots == 3)
-                botCount = std::min(3u, maxBots);
-            else
-                botCount = maxBots;
+            botCount = SelectConversationParticipantCount(
+                static_cast<uint32>(bots.size()), 4);
         }
 
         Player* bot1 = bots[0];

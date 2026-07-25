@@ -18,7 +18,6 @@ from chatter_shared import (
     zone_cache,
     parse_single_response,
     parse_conversation_response,
-    extract_conversation_msg_count,
     can_class_use_item,
     query_zone_quests,
     query_zone_loot,
@@ -40,7 +39,7 @@ from chatter_shared import (
     get_zone_flavor,
     get_subzone_name,
     get_subzone_lore,
-    get_language_rule,
+    build_conversation_json_repair_prompt,
 )
 from chatter_shared import (
     build_talent_context,
@@ -74,28 +73,6 @@ from chatter_prompts import (
 logger = logging.getLogger(__name__)
 
 _gossip_target_cooldowns = {}
-
-
-def _build_json_repair_prompt(prompt, bot_names):
-    """Build a conversation JSON repair prompt.
-
-    Plain-string repair prompts do not pass through the shared
-    JSON helpers, so append the configured language rule directly.
-    """
-    msg_count = extract_conversation_msg_count(prompt)
-    repair_prompt = (
-        "Your previous output was invalid JSON. "
-        "Output ONLY a JSON array of "
-        f"{msg_count if msg_count else 'the required number of'} "
-        f"messages with the speakers: "
-        f"{', '.join(bot_names)}. Use double quotes, "
-        "escape quotes/newlines, no trailing commas, "
-        "no code fences."
-    )
-    lang_rule = get_language_rule()
-    if lang_rule:
-        repair_prompt += lang_rule
-    return repair_prompt
 
 
 def _build_zone_metadata(zone_id, area_id=0):
@@ -784,7 +761,7 @@ def process_conversation(
         )
 
         if not messages:
-            repair_prompt = _build_json_repair_prompt(
+            repair_prompt = build_conversation_json_repair_prompt(
                 prompt, bot_names,
             )
             response = call_llm(

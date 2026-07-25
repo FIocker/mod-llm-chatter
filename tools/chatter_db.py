@@ -1609,6 +1609,8 @@ def cleanup_all_session_data(db):
     - llm_group_chat_history
     - llm_group_cached_responses
     - llm_general_chat_history
+    - llm_guild_session_history
+    - llm_guild_chat_sessions
     - llm_chatter_queue (pending/processing)
     - llm_chatter_messages (undelivered)
     - llm_chatter_events (pending/processing)
@@ -1626,6 +1628,12 @@ def cleanup_all_session_data(db):
         )
         cursor.execute(
             "DELETE FROM llm_general_chat_history"
+        )
+        cursor.execute(
+            "DELETE FROM llm_guild_session_history"
+        )
+        cursor.execute(
+            "DELETE FROM llm_guild_chat_sessions"
         )
         cursor.execute(
             "DELETE FROM llm_chatter_queue"
