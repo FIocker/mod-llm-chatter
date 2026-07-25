@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-04-06 (added command bridge, constants consolidation)
+Last updated: 2026-07-25 (probabilistic Guild continuity context)
 
 ## Purpose
 
@@ -59,8 +59,8 @@ not just `docker restart`.
 3. Python generates messages and writes them to
    `llm_chatter_messages`.
 4. C++ world tick delivers messages in game.
-5. Party-channel delivery may play text emotes; General/Raid/BG
-   delivery does not.
+5. Party-channel delivery may play text emotes; General, Guild,
+   Raid, and BG delivery does not.
 
 ### Screenshot vision data flow
 
@@ -117,6 +117,102 @@ NPCs, and real players as they move through the world:
 NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID, allowing per-instance entity cooldowns. The
 `ProximityScene` struct tracks active conversations for reply matching.
+
+### Guild chatter data flow
+
+Guild chatter reuses shared conversation mechanics while keeping
+Guild-specific selection and context in their owning layers:
+
+1. `CheckGuildIdleChatter()` in `LLMChatterWorld.cpp` finds live,
+   non-combat guild bots in a guild containing an online real player.
+2. C++ rolls `GuildChatter.ConversationChance`, shuffles the live
+   roster, and selects one statement speaker or two to three
+   conversation participants.
+3. One `guild_idle_chatter` event carries `mode` plus structured
+   participant GUID, name, zone, and map data. Legacy single-speaker
+   payloads remain valid.
+4. `chatter_guild.py` selects one RP topic and one event-level zone
+   policy. A separate event-level RNG roll may attach up to the latest
+   15 visible Guild lines from the oldest active Guild session as
+   optional continuity context.
+5. The selected topic remains the creative direction. The prompt may
+   connect compatible history naturally, but must ignore unrelated
+   history and never force a recap or callback. The same context
+   decision survives JSON repair and statement fallback.
+6. Independent bridge RNG may mark zero, one, or several non-opening
+   lines to name contextually relevant earlier speakers. The model
+   selects the connection; deterministic cleanup inserts missing
+   names when a selected line ignores the cue.
+7. Conversation output must contain every selected speaker. Invalid
+   JSON gets one repair attempt, then falls back to a primary-speaker
+   statement.
+8. Accepted lines use shared dynamic delays and are inserted with the
+   actual speaker GUID, `channel='guild'`, and
+   `owner_subsystem='guild'`.
+9. `LLMChatterDelivery.cpp` broadcasts each row through the existing
+   Guild delivery branch.
+
+Player-driven Guild exchanges use a separate, session-owned path:
+
+1. `LLMChatterGuild.cpp` owns Guild player chat capture and login/logout
+   lifecycle. A login starts a fresh `llm_guild_chat_sessions` row;
+   login and logout both delete any prior session transcript.
+2. A real player's Guild line is copied into every active session for
+   that Guild, then the speaking player's `turn_id` advances.
+3. The newest turn cancels older pending events and undelivered reply
+   lines for that player session. One high-priority
+   `guild_player_message` event is queued after a short debounce with
+   the live eligible Guild-bot candidates.
+4. `chatter_guild_player.py` selects an addressed bot first when
+   applicable, applies a soft penalty to recent speakers, and rolls
+   between one reply, multiple independent replies, or a genuine
+   multi-bot conversation. A group-directed message raises the
+   independent multi-reply chance without forcing multiple bots.
+5. Player-reply prompts combine a compact rolling summary with the
+   latest 15 visible Guild lines: player messages, player-driven
+   replies, ambient statements, and ambient conversation lines.
+   Autonomous Guild statements and conversations may receive the same
+   raw visible-line window through an independent configurable chance,
+   but never receive the private compact player-interaction summary.
+   Older ambient lines are not folded into that summary.
+6. Callback, player-name, follow-up-question, and participant-reference
+   decisions are bridge-side RNG choices. Prompt validation and
+   deterministic name insertion keep those choices enforceable across
+   different configured models.
+7. Summary compaction calls the same `call_llm()` path with the user's
+   configured provider and model. It runs only after the unsummarized
+   interaction text crosses a configurable threshold.
+8. Successful Guild delivery records the visible bot line into every
+   active Guild session. Recent player exchanges suppress ambient Guild
+   triggers briefly so ambient chatter does not interrupt the player.
+   Initial replies use a Guild-specific delay range; later replies use
+   the shared full reading, typing, and distraction pacing.
+
+Guild login greetings share the same session boundary without pretending
+that playerbots are ready synchronously:
+
+1. The existing `PLAYERHOOK_ON_LOGIN` handler starts the real player's
+   Guild session. No AzerothCore or `mod-playerbots` source is modified.
+2. `LLMChatterGuild.cpp` rolls one weighted initial delay: quick
+   (2-5 seconds), ordinary (8-20), or busy (25-45).
+3. Guild-owned pending state waits until the delay expires, then reuses
+   the live eligible-bot selector. Missing or still-loading bots cause a
+   bounded retry rather than an immediate loss.
+4. Logout, relogin, Guild change, module disablement, session staleness,
+   or a real Guild message cancels the greeting.
+5. One high-priority `guild_login_greeting` event carries the current
+   session, target player, delay metadata, and live bot candidates.
+6. `chatter_guild_login.py` normally selects one greeter and
+   occasionally two or three. One LLM request generates the whole
+   sequence as short, distinct, message-only Guild lines.
+7. The first line has no extra bridge-side delay because the C++ pending
+   timer already supplied the human pause. Additional greeters reuse
+   shared dynamic conversation pacing.
+8. The bridge validates `session_id` and the initial `turn_id=0` before
+   generation and insertion. A player message therefore supersedes an
+   obsolete greeting even if the event was already claimed.
+9. Native Guild delivery records successful greetings as `reply`
+   history, making them visible to later player-session continuity.
 
 ## System Prompt Architecture
 
@@ -351,6 +447,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | ~800 | WorldScript ownership, thin ambient/nearby/delivery/proximity delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
+| `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
 | `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
 | `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupInternal.h` | 239 | Shared group internal header: struct definitions (`GroupJoinEntry`, `GroupJoinBatch`, `QuestAcceptEntry`, `QuestAcceptBatch`), extern declarations for all shared cooldown maps, batch containers, mutexes, emote cooldowns, named boss cache; shared helper declarations; domain entry-point declarations; `EmoteTargetType` enum |
@@ -377,6 +475,7 @@ Session 69 added two scheduling controls around that model:
 `LLMChatterScript.cpp` is now the coordinator and calls:
 
 - `AddLLMChatterWorldScripts()`
+- `AddLLMChatterGuildScripts()`
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
 - `AddLLMChatterBGScripts()`
@@ -403,6 +502,9 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/llm_chatter_bridge.py` | Main loops, event claiming, registry-driven routing, worker orchestration |
 | `tools/chatter_event_registry.py` | Central Python event registry: handler module/function resolution, producer notes, payload field docs, dead-event tracking |
 | `tools/chatter_ambient.py` | Ambient statement/conversation generation |
+| `tools/chatter_guild.py` | Guild prompts and insert orchestration |
+| `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
+| `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
 
 ### Group domain
 
@@ -419,10 +521,10 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_shared.py` | Compatibility facade and residual shared helpers only: `PromptParts(str)` class for system/user prompt separation, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode), `should_include_action()` (single RNG roll for narrator action gating at conversation delivery sites), `resolve_gender()` (maps numeric gender 0/1 to male/female with DB fallback), `build_bot_identity()` (name/race/class/gender identity string used by all prompt builders). Avoid adding new domain-specific handler logic here unless it is truly cross-domain. |
+| `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition |
 | `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; `label=` param logs every call via `chatter_request_logger` |
-| `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, `cleanup_stale_groups()`, `cleanup_all_session_data()` |
+| `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
 | `tools/chatter_general.py` | `player_general_msg` Python path |

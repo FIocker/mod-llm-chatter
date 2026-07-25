@@ -81,6 +81,8 @@ bool IsEventOnCooldown(
 void SetEventCooldown(
     std::map<std::string, time_t>& cooldownCache,
     const std::string& cooldownKey);
+uint32 SelectConversationParticipantCount(
+    uint32 available, uint32 maximum);
 void LogIgnoredAddonChat(
     Player const* player, uint32 type,
     std::string const& msg, char const* source);

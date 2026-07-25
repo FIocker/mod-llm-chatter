@@ -5,6 +5,7 @@
 #include "LLMChatterAmbient.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterDelivery.h"
+#include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterNearby.h"
@@ -316,6 +317,10 @@ public:
             "DELETE FROM llm_group_chat_history");
         CharacterDatabase.Execute(
             "DELETE FROM llm_group_cached_responses");
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_guild_session_history");
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_guild_chat_sessions");
 
         LoadTransportCache();
 
@@ -336,6 +341,8 @@ public:
 
     void OnUpdate(uint32 /*diff*/) override
     {
+        UpdatePendingGuildLoginGreetings();
+
         if (!sLLMChatterConfig->IsEnabled())
             return;
 
@@ -685,16 +692,25 @@ private:
             byGuild[guildId].push_back(bot);
         }
 
+        std::random_device rd;
+        std::mt19937 generator(rd());
         for (uint32 guildId : activeGuilds)
         {
             auto it = byGuild.find(guildId);
             if (it == byGuild.end())
                 continue;
 
-            std::vector<Player*> const& members =
-                it->second;
+            std::vector<Player*> members = it->second;
             if (members.empty())
                 continue;
+
+            if (WasGuildPlayerInteractionRecent(
+                    guildId,
+                    sLLMChatterConfig
+                        ->_guildPlayerIdleSuppressionSeconds))
+            {
+                continue;
+            }
 
             auto cdIt = guildCooldowns.find(guildId);
             if (cdIt != guildCooldowns.end()
@@ -707,8 +723,25 @@ private:
                 > sLLMChatterConfig->_guildChatterChance)
                 continue;
 
-            Player* speaker =
-                members[urand(0, members.size() - 1)];
+            std::shuffle(
+                members.begin(), members.end(), generator);
+
+            bool isConversation =
+                members.size() >= 2
+                && urand(1, 100)
+                    <= sLLMChatterConfig
+                           ->_guildChatterConversationChance;
+            uint32 participantCount =
+                isConversation
+                    ? SelectConversationParticipantCount(
+                        static_cast<uint32>(members.size()),
+                        sLLMChatterConfig
+                            ->_guildChatterMaxParticipants)
+                    : 1;
+            std::vector<Player*> participants(
+                members.begin(),
+                members.begin() + participantCount);
+            Player* speaker = participants.front();
 
             Guild* guild =
                 sGuildMgr->GetGuildById(guildId);
@@ -721,7 +754,10 @@ private:
             uint32 added = 0;
             for (Player* m : members)
             {
-                if (m == speaker)
+                if (std::find(
+                        participants.begin(),
+                        participants.end(),
+                        m) != participants.end())
                     continue;
                 if (added)
                     mates += ", ";
@@ -737,14 +773,40 @@ private:
                     ? "Alliance"
                     : "Horde";
 
+            std::string participantsJson = "[";
+            for (uint32 i = 0;
+                 i < participants.size();
+                 ++i)
+            {
+                Player* participant = participants[i];
+                if (i)
+                    participantsJson += ",";
+                participantsJson += fmt::format(
+                    R"({{"guid":{},"name":"{}",)"
+                    R"("zone_id":{},"map_id":{}}})",
+                    participant->GetGUID().GetCounter(),
+                    JsonEscape(participant->GetName()),
+                    participant->GetZoneId(),
+                    participant->GetMapId());
+            }
+            participantsJson += "]";
+
             std::string json = fmt::format(
-                R"({{"guild_name":"{}",)"
+                R"({{"guild_id":{},)"
+                R"("guild_name":"{}",)"
                 R"("speaker_name":"{}",)"
+                R"("mode":"{}",)"
+                R"("participants":{},)"
                 R"("guildmates":"{}",)"
                 R"("team":"{}",)"
                 R"("zone_id":{}}})",
+                guildId,
                 JsonEscape(guildName),
                 JsonEscape(speaker->GetName()),
+                isConversation
+                    ? "conversation"
+                    : "statement",
+                participantsJson,
                 JsonEscape(mates),
                 teamName,
                 speaker->GetZoneId());

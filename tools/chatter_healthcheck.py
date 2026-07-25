@@ -61,6 +61,8 @@ _REQUIRED_TABLES = [
     'llm_chatter_messages',
     'llm_group_bot_traits',
     'llm_bot_memories',
+    'llm_guild_chat_sessions',
+    'llm_guild_session_history',
 ]
 
 _VALID_PROVIDERS = (

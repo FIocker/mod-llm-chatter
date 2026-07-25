@@ -28,7 +28,7 @@ class EventSpec:
 
 
 # --------------------------------------------------
-# Live event registry — 54 entries
+# Live event registry.
 # --------------------------------------------------
 
 EVENT_REGISTRY: Dict[str, EventSpec] = {
@@ -851,12 +851,65 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         ),
         producer='LLMChatterWorld.cpp',
         priority='filler',
-        description='Ambient guild-channel chatter',
+        description=(
+            'Ambient Guild statement or conversation'
+        ),
         payload_fields={
+            'guild_id': (int, False),
             'guild_name': (str, True),
             'speaker_name': (str, True),
+            'mode': (str, False),
+            'participants': (list, False),
             'guildmates': (str, False),
+            'team': (str, False),
             'zone_id': (int, True),
+        },
+    ),
+
+    'guild_player_message': EventSpec(
+        handler_module='chatter_guild_player',
+        handler_func=(
+            'process_guild_player_message_event'
+        ),
+        producer='LLMChatterGuild.cpp',
+        priority='high',
+        description=(
+            'Guild bots reply to a real player'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'session_id': (int, True),
+            'turn_id': (int, True),
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'player_message': (str, True),
+            'team': (str, False),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_login_greeting': EventSpec(
+        handler_module='chatter_guild_login',
+        handler_func=(
+            'process_guild_login_greeting_event'
+        ),
+        producer='LLMChatterGuild.cpp',
+        priority='high',
+        description=(
+            'Guild bots greet a real player on login'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'session_id': (int, True),
+            'turn_id': (int, True),
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'team': (str, False),
+            'initial_delay_seconds': (int, False),
+            'initial_delay_band': (str, False),
+            'candidates': (list, True),
         },
     ),
 
