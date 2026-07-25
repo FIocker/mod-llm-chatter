@@ -5,6 +5,7 @@
 #include "LLMChatterConfig.h"
 #include "Guild.h"
 #include "LLMChatterDelivery.h"
+#include "LLMChatterGuild.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterShared.h"
 
@@ -849,6 +850,16 @@ void DeliverPendingMessagesImpl()
                 ? "contextual" : deliveryPolicy,
             deliveryReason.empty()
                 ? "party_delivery" : deliveryReason);
+    }
+
+    if (sent && channel == "guild" && bot)
+    {
+        RecordDeliveredGuildLine(
+            bot->GetGuildId(),
+            eventId,
+            botGuid,
+            botName,
+            message);
     }
 
     if (sent || botUnavailable)

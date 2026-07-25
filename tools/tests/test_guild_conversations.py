@@ -63,15 +63,44 @@ import chatter_guild  # noqa: E402
 class _Cursor:
     def __init__(self, db):
         self.db = db
+        self.results = []
 
     def execute(self, query, params=None):
         if "UPDATE llm_chatter_events" in query:
             self.db.statuses.append(params)
+        elif (
+            "SELECT id FROM llm_guild_chat_sessions"
+            in query
+        ):
+            self.db.history_queries += 1
+            self.results = (
+                [{'id': self.db.history_session_id}]
+                if self.db.history_session_id
+                else []
+            )
+        elif (
+            "FROM llm_guild_session_history"
+            in query
+        ):
+            self.db.history_queries += 1
+            limit = int(params[1])
+            self.results = list(
+                reversed(self.db.history_rows[-limit:])
+            )
+
+    def fetchone(self):
+        return self.results[0] if self.results else None
+
+    def fetchall(self):
+        return list(self.results)
 
 
 class _DB:
     def __init__(self):
         self.statuses = []
+        self.history_queries = 0
+        self.history_session_id = 0
+        self.history_rows = []
 
     def cursor(self, *args, **kwargs):
         return _Cursor(self)
@@ -125,6 +154,8 @@ def _config() -> dict:
     return {
         'LLMChatter.GuildChatter.MaxTokens': 200,
         'LLMChatter.GuildChatter.MaxConversationLines': 4,
+        'LLMChatter.GuildChatter.HistoryContextChance': 35,
+        'LLMChatter.GuildChatter.HistoryContextMessages': 15,
         'LLMChatter.GuildChatter.'
         'ParticipantReferenceChance': 25,
         'LLMChatter.GuildChatter.'
@@ -270,6 +301,93 @@ def test_structured_payload_caps_three_participants():
         participant['name']
         for participant in participants
     ] == ['Aliss', 'Rytsen', 'Calia']
+
+
+def test_history_context_miss_avoids_database_query():
+    db = _DB()
+    with patch.object(
+        chatter_guild.random,
+        'randint',
+        return_value=90,
+    ):
+        context, metadata = (
+            chatter_guild
+            ._select_guild_history_context(
+                db,
+                _config(),
+                9,
+            )
+        )
+
+    assert context == ''
+    assert db.history_queries == 0
+    assert (
+        metadata['guild_history_context_roll']
+        == 90
+    )
+    assert (
+        metadata['guild_history_context_selected']
+        is False
+    )
+
+
+def test_history_context_hit_loads_latest_visible_lines():
+    db = _DB()
+    db.history_session_id = 41
+    db.history_rows = [
+        {
+            'id': 10,
+            'speaker_name': 'Karaez',
+            'is_bot': 0,
+            'source_kind': 'player',
+            'message': 'Anyone seen the old shrine?',
+        },
+        {
+            'id': 11,
+            'speaker_name': 'Aliss',
+            'is_bot': 1,
+            'source_kind': 'reply',
+            'message': 'Not since the last moon.',
+        },
+        {
+            'id': 12,
+            'speaker_name': 'Rytsen',
+            'is_bot': 1,
+            'source_kind': 'ambient',
+            'message': 'The road east is quiet.',
+        },
+    ]
+    with patch.object(
+        chatter_guild.random,
+        'randint',
+        return_value=1,
+    ):
+        context, metadata = (
+            chatter_guild
+            ._select_guild_history_context(
+                db,
+                _config(),
+                9,
+            )
+        )
+
+    assert (
+        'Karaez (player): Anyone seen the old shrine?'
+        in context
+    )
+    assert (
+        'Rytsen [ambient]: The road east is quiet.'
+        in context
+    )
+    assert db.history_queries == 2
+    assert (
+        metadata['guild_history_context_selected']
+        is True
+    )
+    assert metadata['guild_history_context_lines'] == 3
+    assert metadata['guild_history_session_id'] == 41
+    assert metadata['guild_history_oldest_id'] == 10
+    assert metadata['guild_history_newest_id'] == 12
 
 
 def test_reference_selection_supports_mixed_patterns():
@@ -568,7 +686,7 @@ def test_failed_repair_falls_back_to_statement():
     def fake_call_llm(
         client, prompt, config, **kwargs
     ):
-        calls.append(kwargs)
+        calls.append((prompt, kwargs))
         return next(responses)
 
     with (
@@ -608,6 +726,27 @@ def test_failed_repair_falls_back_to_statement():
             '_pick_length_hint',
             return_value='HARD LIMIT: 150 characters.',
         ),
+        patch.object(
+            chatter_guild,
+            '_select_guild_history_context',
+            return_value=(
+                '  Karaez (player): Keep watch east.',
+                {
+                    'guild_history_context_chance': 35,
+                    'guild_history_context_roll': 7,
+                    'guild_history_context_roll_hit': True,
+                    'guild_history_context_selected': True,
+                    'guild_history_context_limit': 15,
+                    'guild_history_context_lines': 1,
+                    'guild_history_session_id': 41,
+                    'guild_history_oldest_id': 10,
+                    'guild_history_newest_id': 10,
+                    'guild_history_player_lines': 1,
+                    'guild_history_reply_lines': 0,
+                    'guild_history_ambient_lines': 0,
+                },
+            ),
+        ) as history_select,
     ):
         result = (
             chatter_guild.process_guild_idle_chatter_event(
@@ -617,10 +756,21 @@ def test_failed_repair_falls_back_to_statement():
 
     assert result is True
     assert len(calls) == 3
+    assert history_select.call_count == 1
+    assert all(
+        'Karaez (player): Keep watch east.'
+        in str(prompt)
+        for prompt, _kwargs in calls
+    )
     assert (
-        calls[-1]['metadata']
+        calls[-1][1]['metadata']
         ['guild_statement_fallback']
         is True
+    )
+    assert all(
+        kwargs['metadata']
+        ['guild_history_context_roll'] == 7
+        for _prompt, kwargs in calls
     )
     assert len(inserted) == 1
     assert inserted[0]['bot_name'] == 'Aliss'
@@ -633,6 +783,8 @@ def main() -> int:
         test_legacy_payload_normalizes_to_statement,
         test_legacy_payload_processes_statement,
         test_structured_payload_caps_three_participants,
+        test_history_context_miss_avoids_database_query,
+        test_history_context_hit_loads_latest_visible_lines,
         test_reference_selection_supports_mixed_patterns,
         test_reference_accepts_model_selected_earlier_speaker,
         test_reference_fallback_guarantees_requested_names,

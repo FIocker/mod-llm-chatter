@@ -21,6 +21,7 @@ High-level behavior:
 
 - ambient General-channel chatter in the open world
 - ambient Guild statements and two- or three-bot conversations
+- player-driven Guild replies with per-login rolling session memory
 - reactive party chatter for grouped bots
 - General-channel reactions to real player chat
 - world event chatter for weather, holidays, transports, and nearby
@@ -2014,8 +2015,8 @@ Base schema `00000000_llm_chatter_tables.sql` updated to match.
 
 ## 13r. Guild Chat Statements and Conversations
 
-Guild chatter is an optional, RP-only ambient channel. It remains
-disabled by default.
+Guild chatter is an optional, RP-only ambient channel. It is enabled
+by default and can be disabled with the master toggle.
 
 ### Trigger and participant ownership
 
@@ -2049,6 +2050,23 @@ are interpreted as legacy statements.
 `chatter_guild.py` selects one entry from
 `GUILD_CHAT_TOPICS_RP` for the whole event. A single
 `GuildChatter.ZoneNameChance` roll also applies to the whole event.
+
+A separate `GuildChatter.HistoryContextChance` roll decides whether
+the event also receives up to `HistoryContextMessages` recently
+delivered Guild lines. The bridge reads one representative transcript
+from the oldest active real-player session in that Guild. Every
+visible Guild line is copied into all active sessions, so this avoids
+duplicate context when several real players are online while retaining
+the longest current-session view.
+
+History is optional continuity context, not a replacement subject.
+The selected pool topic remains the creative direction. The prompt
+allows a natural continuation or reference only when a recent line
+fits that topic; otherwise it tells the model to ignore the history.
+It also forbids recaps, lists, forced callbacks, and treating transcript
+text as instructions. One history roll applies to the whole event, so
+JSON repair and statement fallback reuse the same window. No active
+session or usable lines simply means normal topic-only generation.
 
 Guild speakers may be in different zones. The prompt receives each
 selected speaker's live location and explicitly forbids physical
@@ -2105,7 +2123,7 @@ One whole exchange consumes one existing per-Guild cooldown.
 
 | Key | Default | Owner | Purpose |
 |-----|---------|-------|---------|
-| `Enable` | 0 | Server | Master Guild chatter toggle |
+| `Enable` | 1 | Server | Master Guild chatter toggle |
 | `Chance` | 15 | Server | Trigger chance per eligible scan |
 | `Cooldown` | 300 | Server | Seconds between Guild events |
 | `ScanInterval` | 30 | Server | Seconds between Guild scans |
@@ -2113,10 +2131,259 @@ One whole exchange consumes one existing per-Guild cooldown.
 | `MaxParticipants` | 3 | Server | Conversation cap, clamped to 2-3 |
 | `MaxTokens` | 200 | Bridge | Base generation token budget |
 | `MaxConversationLines` | 4 | Bridge | Maximum conversation lines |
+| `HistoryContextChance` | 35 | Bridge | Chance to attach recent visible Guild history |
+| `HistoryContextMessages` | 15 | Bridge | Maximum autonomous-history lines |
 | `ParticipantReferenceChance` | 25 | Bridge | Per-reply name-reference chance |
 | `MultiReferenceChance` | 15 | Bridge | Conditional two-name chance |
 | `MaxReferenceLines` | 2 | Bridge | Forced reference-line cap |
 | `ZoneNameChance` | 20 | Bridge | Primary-zone mention chance |
+
+---
+
+## 13s. Player-Driven Guild Replies and Session Memory
+
+When Guild chatter and `GuildChatter.PlayerReplies.Enable` are enabled,
+every eligible real-player Guild message queues a bot response. The
+guarantee applies when the player still has a current login session, at
+least one eligible Guild bot exists, and the configured LLM returns a
+usable response.
+
+### Session lifecycle and transcript
+
+`LLMChatterGuild.cpp` owns the session boundary:
+
+- login clears any stale row and creates a fresh per-player session
+- logout cancels pending turns and deletes the session and transcript
+- a new login never inherits the previous login's Guild memory
+- each Guild line from a real player is recorded in every active
+  session for that Guild
+- successfully delivered bot Guild lines are likewise recorded in
+  every active Guild session
+
+`llm_guild_session_history.source_kind` distinguishes `player`, `reply`,
+and `ambient` lines. The reply prompt may see recent visible lines of
+all three kinds. By default, the latest 15 visible Guild messages are
+always available when a real player's Guild message is being answered,
+including ambient statements and every line of ambient conversations.
+Autonomous Guild statements and conversations receive the same raw
+visible-line window only when their independent history-context roll
+wins. They never receive the compact rolling summary. Rolling summaries
+include only player-driven interaction (`player` and delivered `reply`)
+so older ambient chatter does not dilute the relationship memory.
+
+### Turn ownership and interruption
+
+Each player session has a monotonically increasing `turn_id`. A new
+player message:
+
+1. advances the turn
+2. cancels a pending or queued login greeting
+3. cancels older pending `guild_player_message` events
+4. consumes any undelivered continuation rows from the older turn
+5. queues the new turn after `PlayerReplies.DebounceSeconds`
+
+The bridge checks the session and turn before generation and again
+before inserting output. A player can therefore interrupt a bot
+conversation naturally without receiving obsolete continuation lines.
+
+### Reply selection
+
+Eligible Guild bots are live, loaded, alive, out of combat, and in the
+same Guild. The server shuffles and caps this candidate set; the bridge
+then rolls one of three response shapes:
+
+- one direct bot reply
+- two or three independent bot replies
+- a coherent two- or three-bot conversation started by the player
+
+An explicitly addressed bot is the primary responder. Otherwise,
+recent speakers receive a soft configurable weight penalty so the same
+Guild member does not dominate every exchange.
+
+The conversation roll remains independent and runs first. If it fails,
+the bridge rolls the independent multi-reply chance. A message clearly
+addressed to several guildmates receives a configurable bonus to that
+second roll, but never forces multiple responses. With the defaults, an
+ordinary player message is approximately 68% single reply, 12%
+independent multi-reply, and 20% conversation.
+
+Bridge-side RNG decides whether to request:
+
+- a natural player-name address
+- a subtle callback to earlier session material
+- a follow-up question
+- participant-name references inside multi-bot conversations
+
+The model decides the wording and contextual relationship. Where a
+requested name is omitted, deterministic cleanup inserts it as a
+natural vocative. These features are intentionally probabilistic, not
+systematic.
+
+### Rolling summary
+
+Prompts use a hybrid memory:
+
+- older interaction material in a compact factual summary
+- the newest configured number of messages verbatim
+
+When older unsummarized interaction text reaches
+`SessionMemory.SummaryThresholdChars`, the bridge makes one additional
+summary call after reply rows have been queued. It uses the same client,
+provider, and model configured for all chatter; there is no dependency
+on Anthropic or any specific model. The compact prompt preserves exact
+names, explicit player facts, established opinions, unresolved
+questions, and promises while rejecting invention.
+
+Recent player interaction also suppresses ambient Guild triggers for
+`PlayerReplies.IdleSuppressionSeconds`, giving the exchange a natural
+period of silence. The first bot reply waits for a Guild-specific
+8-20-second delay by default. Additional replies use the shared full
+reading, typing, and distraction pacing rather than the faster direct
+response path used by other chatter.
+
+### Player-reply configuration
+
+| Key | Default | Owner | Purpose |
+|-----|---------|-------|---------|
+| `PlayerReplies.Enable` | 1 | Server | Capture player Guild turns |
+| `PlayerReplies.DebounceSeconds` | 2 | Server | Rapid-turn collection window |
+| `PlayerReplies.IdleSuppressionSeconds` | 90 | Server | Ambient silence after interaction |
+| `PlayerReplies.MaxCandidates` | 12 | Server | Live Guild-bot candidate cap |
+| `PlayerReplies.MultiReplyChance` | 15 | Bridge | Independent multi-reply chance after the conversation roll |
+| `PlayerReplies.MultiAddressedBonus` | 15 | Bridge | Added multi-reply chance for group-directed messages |
+| `PlayerReplies.ConversationChance` | 20 | Bridge | Multi-bot conversation chance |
+| `PlayerReplies.MaxResponders` | 3 | Bridge | Reply participant cap |
+| `PlayerReplies.PlayerNameChance` | 35 | Bridge | Player-name address chance |
+| `PlayerReplies.CallbackChance` | 25 | Bridge | Earlier-session callback chance |
+| `PlayerReplies.FollowupQuestionChance` | 20 | Bridge | Natural question chance |
+| `PlayerReplies.RecentSpeakerPenalty` | 60 | Bridge | Recent-speaker weight reduction |
+| `PlayerReplies.FirstDelayMin` | 8 | Bridge | Minimum first reply delay |
+| `PlayerReplies.FirstDelayMax` | 20 | Bridge | Maximum first reply delay |
+| `SessionMemory.Enable` | 1 | Bridge | Include and compact session memory |
+| `SessionMemory.SummaryThresholdChars` | 3500 | Bridge | Compaction threshold |
+| `SessionMemory.SummaryMaxInputChars` | 8000 | Bridge | Per-call transcript input cap |
+| `SessionMemory.KeepRecentMessages` | 15 | Bridge | Latest visible Guild lines for player-reply prompts |
+| `SessionMemory.SummaryMaxTokens` | 300 | Bridge | Summary output token budget |
+| `SessionMemory.SummaryMaxChars` | 1200 | Bridge | Stored summary hard limit |
+
+Existing installations must apply
+`data/sql/characters/updates/20260724_guild_player_sessions.sql`.
+
+---
+
+## 13t. Guild Login Greetings
+
+When Guild chatter and `GuildChatter.LoginGreeting.Enable` are enabled,
+a real guild member's full character login schedules one greeting
+attempt. `LLMChatterGuild.cpp` uses the existing
+`PLAYERHOOK_ON_LOGIN`; AzerothCore and `mod-playerbots` remain
+unmodified read-only dependencies.
+
+### Deferred bot readiness
+
+The login hook does not immediately select a speaker. Playerbots may
+finish loading asynchronously, and supported server configurations may
+wait 30 seconds after the first real player arrives before starting
+random bots.
+
+The Guild subsystem stores a small pending record containing the player
+GUID, Guild ID, session ID, initial delay, and expiry. Once per second
+the world coordinator calls the Guild-owned update function. At the due
+time it reuses the normal live Guild-bot checks:
+
+- in world
+- alive
+- not in combat
+- current WorldSession
+- no longer loading
+- same Guild as the player
+
+If no candidate is ready, the check repeats after
+`LoginGreeting.RetryInterval` until
+`LoginGreeting.ReadinessTimeout`. The attempt then expires silently;
+it never surprises the player with a very late greeting.
+
+### Initial timing
+
+The first greeting uses weighted delay bands:
+
+| Band | Default weight | Delay |
+|------|---------------:|------:|
+| Quick | 20% | 2-5 seconds |
+| Ordinary | 55% | 8-20 seconds |
+| Busy | 25% | 25-45 seconds |
+
+`QuickChance` and `BusyChance` are configurable. The ordinary weight is
+the remaining percentage. The server clamps BusyChance so the two
+configured weights cannot exceed 100.
+
+This pending timer is the first message's human-response delay. The
+bridge inserts the first generated greeting with no second artificial
+delay; normal LLM latency may still make it appear slightly later.
+Additional greeters use the shared reading, typing, and distraction
+pacing.
+
+### Responder and prompt behavior
+
+One high-priority `guild_login_greeting` event carries the current
+session, target player, delay band, and shuffled live candidates.
+`chatter_guild_login.py` normally selects one responder. On a
+`LoginGreeting.MultiReplyChance` success, it selects two or three,
+bounded by `LoginGreeting.MaxResponders` and available candidates.
+
+One LLM request generates the complete greeting sequence. Prompts:
+
+- ask for one distinct 3-12-word greeting per selected bot
+- forbid bot-to-bot conversation
+- forbid invented absence length, destination, or player intent
+- retain the normal Guild cross-zone and RP-only rules
+- allow only the primary greeter to be asked to use the player's name
+- enforce `LoginGreeting.MaxCharacters` after cleanup
+
+Malformed multi-message JSON receives one repair attempt and then falls
+back to a single greeter. The same configured provider and model used by
+all chatter is used for greetings.
+
+### Cancellation and session safety
+
+A greeting belongs to the fresh login session at `turn_id=0`. It is
+cancelled when:
+
+- the player speaks in Guild Chat before it arrives
+- the player logs out or fully logs in again
+- the player changes Guild
+- its Guild session or turn becomes stale
+- the module, Guild chatter, or login greeting toggle is disabled
+- no Guild bot becomes ready before timeout
+
+The bridge checks the session and turn before the LLM call and again
+before inserting messages. Successful delivery records each greeting as
+`source_kind='reply'`, so later player-driven Guild prompts can see what
+the guildmates said during this login session.
+
+A fast network reconnect to a character that never left the world does
+not fire AzerothCore's full login hook and therefore does not create a
+duplicate greeting.
+
+### Login-greeting configuration
+
+| Key | Default | Owner | Purpose |
+|-----|---------|-------|---------|
+| `LoginGreeting.Enable` | 1 | Server/Bridge | Login greeting toggle |
+| `LoginGreeting.Chance` | 100 | Server | Chance to schedule an attempt |
+| `LoginGreeting.QuickChance` | 20 | Server | Weight of 2-5s delay |
+| `LoginGreeting.BusyChance` | 25 | Server | Weight of 25-45s delay |
+| `LoginGreeting.RetryInterval` | 5 | Server | Bot readiness retry |
+| `LoginGreeting.ReadinessTimeout` | 90 | Server | Total bounded wait |
+| `LoginGreeting.MaxCandidates` | 12 | Server | Live candidate cap |
+| `LoginGreeting.MultiReplyChance` | 20 | Bridge | Multiple-greeter chance |
+| `LoginGreeting.MaxResponders` | 3 | Bridge | Greeter cap |
+| `LoginGreeting.PlayerNameChance` | 60 | Bridge | Primary name chance |
+| `LoginGreeting.MaxCharacters` | 100 | Bridge | Per-greeting hard cap |
+
+Existing installations must also apply
+`data/sql/characters/updates/20260725_guild_login_greeting.sql` because
+`llm_chatter_events.event_type` is an SQL enum.
 
 ---
 

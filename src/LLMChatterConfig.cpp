@@ -25,7 +25,8 @@ void LLMChatterConfig::LoadConfig()
 
     // General settings
     _triggerIntervalSeconds = GetChatterOption<uint32>("LLMChatter.TriggerIntervalSeconds", 60);
-    _conversationChance = GetChatterOption<uint32>("LLMChatter.ConversationChance", 50);
+    _conversationChance = GetChatterOption<uint32>(
+        "LLMChatter.ConversationChance", 40);
     _triggerChance = GetChatterOption<uint32>("LLMChatter.TriggerChance", 15);
     _cityChatterMultiplier = GetChatterOption<uint32>("LLMChatter.CityChatterMultiplier", 2);
     _maxPendingRequests = GetChatterOption<uint32>("LLMChatter.MaxPendingRequests", 5);
@@ -577,7 +578,7 @@ void LLMChatterConfig::LoadConfig()
 
     // Guild chatter (ambient guild-channel banter)
     _guildChatterEnable = GetChatterOption<bool>(
-        "LLMChatter.GuildChatter.Enable", false);
+        "LLMChatter.GuildChatter.Enable", true);
     _guildChatterChance =
         GetChatterOption<uint32>(
             "LLMChatter.GuildChatter."
@@ -604,6 +605,74 @@ void LLMChatterConfig::LoadConfig()
                     "LLMChatter.GuildChatter."
                     "MaxParticipants", 3),
                 3u));
+    _guildPlayerRepliesEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "PlayerReplies.Enable", true);
+    _guildPlayerReplyDebounceSeconds =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "PlayerReplies.DebounceSeconds", 2),
+            10u);
+    _guildPlayerIdleSuppressionSeconds =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter."
+            "PlayerReplies.IdleSuppressionSeconds",
+            90);
+    _guildPlayerReplyMaxCandidates =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "PlayerReplies.MaxCandidates", 12),
+                30u));
+    _guildLoginGreetingEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "LoginGreeting.Enable", true);
+    _guildLoginGreetingChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "LoginGreeting.Chance", 100),
+            100u);
+    _guildLoginGreetingQuickChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "LoginGreeting.QuickChance", 20),
+            100u);
+    _guildLoginGreetingBusyChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "LoginGreeting.BusyChance", 25),
+            100u - _guildLoginGreetingQuickChance);
+    _guildLoginGreetingRetryInterval =
+        std::max(
+            1u,
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "LoginGreeting.RetryInterval", 5));
+    _guildLoginGreetingReadinessTimeout =
+        std::max(
+            45u,
+            std::max(
+                _guildLoginGreetingRetryInterval,
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "LoginGreeting.ReadinessTimeout",
+                    90)));
+    _guildLoginGreetingMaxCandidates =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "LoginGreeting.MaxCandidates", 12),
+                30u));
 
     // Zone intrusion alerts
     _zoneIntrusionEnable =

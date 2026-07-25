@@ -249,12 +249,23 @@ public:
     uint32 _raidMoraleCooldown;
 
     // Guild chatter (ambient guild-channel banter)
-    bool _guildChatterEnable{false};
+    bool _guildChatterEnable{true};
     uint32 _guildChatterChance{15};
     uint32 _guildChatterCooldown{300};
     uint32 _guildChatterScanInterval{30};
     uint32 _guildChatterConversationChance{50};
     uint32 _guildChatterMaxParticipants{3};
+    bool _guildPlayerRepliesEnable{true};
+    uint32 _guildPlayerReplyDebounceSeconds{2};
+    uint32 _guildPlayerIdleSuppressionSeconds{90};
+    uint32 _guildPlayerReplyMaxCandidates{12};
+    bool _guildLoginGreetingEnable{true};
+    uint32 _guildLoginGreetingChance{100};
+    uint32 _guildLoginGreetingQuickChance{20};
+    uint32 _guildLoginGreetingBusyChance{25};
+    uint32 _guildLoginGreetingRetryInterval{5};
+    uint32 _guildLoginGreetingReadinessTimeout{90};
+    uint32 _guildLoginGreetingMaxCandidates{12};
 
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;

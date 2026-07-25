@@ -3531,7 +3531,7 @@ def check_idle_group_chatter(
         'LLMChatter.GroupChatter.IdleChance', 15
     ))
     idle_cooldown = int(config.get(
-        'LLMChatter.GroupChatter.IdleCooldown', 30
+        'LLMChatter.GroupChatter.IdleCooldown', 40
     ))
 
     # Get all active groups from bot traits
@@ -3795,7 +3795,7 @@ def check_idle_group_chatter(
 
         conv_bias = int(config.get(
             'LLMChatter.GroupChatter.'
-            'ConversationBias', 70
+            'ConversationBias', 50
         ))
         use_conversation = (
             random.randint(1, 100) <= conv_bias

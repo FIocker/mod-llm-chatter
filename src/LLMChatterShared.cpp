@@ -231,7 +231,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 34>
+constexpr std::array<EventPriorityRule, 36>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -249,6 +249,8 @@ constexpr std::array<EventPriorityRule, 34>
         {"raid_boss_wipe",          PRIORITY_CRITICAL},
         {"bot_group_player_msg",    PRIORITY_HIGH_LOCAL},
         {"player_general_msg",      PRIORITY_HIGH},
+        {"guild_player_message",    PRIORITY_HIGH},
+        {"guild_login_greeting",    PRIORITY_HIGH},
         {"bot_group_death",         PRIORITY_HIGH},
         {"bot_group_wipe",          PRIORITY_HIGH},
         {"bot_group_join",          PRIORITY_HIGH},
@@ -276,9 +278,11 @@ constexpr std::array<PredicatePriorityRule, 1>
         {IsStateCalloutEventType, PRIORITY_CRITICAL},
     }};
 
-constexpr std::array<EventPriorityRule, 22>
+constexpr std::array<EventPriorityRule, 24>
     kLegacyPriorityRules = {{
         {"player_general_msg",       8},
+        {"guild_player_message",     8},
+        {"guild_login_greeting",     8},
         {"day_night_transition",     7},
         {"transport_arrives",        6},
         {"player_enters_zone",       6},

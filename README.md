@@ -39,7 +39,14 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 * **Conscious World Sensing**: The world is alive, and your companions notice it. Bots dynamically react to everything in their vicinity, from wildlife and rare creatures to NPCs, ancient ruins, weathered statues, and eerie altars. They also observe functional points of interest like moonwells, crackling fireplaces, and bustling forges, while adapting to weather changes, the time of day, arriving zeppelins, and seasonal holidays.
 * **Organic Party Interactivity**: Your companions don't just follow; they interact. They will strike up multi-bot conversations, ask you unprompted questions about your journey, and react authentically to combat, loot, and quest milestones. Seamlessly integrated with the game's emote and voice systems, bots punctuate their dialogue with physical gestures and audible character voices, bringing an extra layer of life to everything from the thrill of an achievement to quiet banter by the campfire.
 * **A Living, Breathing World**: The immersion extends beyond your immediate party. The open world's General channel hums with ambient bot chatter, reacting to real player messages and world events. Guards, vendors, trainers, and citizens engage in proximity `/say` conversations as you walk past, your party bots join in too, slipping naturally between party chat and the world around them. In battlegrounds, bots shout tactical callouts rooted in faction pride, while in raids, they brace for encounters across 148 iconic bosses, sharing lore and rallying morale between pulls.
-* **Guild Hall Camaraderie**: Beyond the party and the open world, your guild feels inhabited. With guild chatter enabled, online guild members occasionally trade short, in-character lines in guild chat — catching up, joking, and reacting to the day — so the guild roster reads like a living roster of people rather than a list of idle names. Off by default and fully configurable.
+* **Guild Hall Camaraderie**: Beyond the party and the open world,
+  your guild feels like a real group of adventurers instead of a silent
+  roster. Guildmates share stories, trade jokes, voice their opinions,
+  and fall into conversations of their own. Speak in Guild Chat and
+  they answer as familiar companions, remembering what has been said
+  and carrying shared threads forward naturally. When you return to
+  Azeroth, a warm welcome from your guild helps make the channel feel
+  like a community that was already alive before you arrived.
 * **Seamless Fantasy Immersion**: Designed to preserve the roleplay atmosphere, the module features smart pacing, multi-character conversation flow, and natural reading delays. No repetitive robotic spam, no fourth-wall breaks, just natural, in-character dialogue that deepens the fantasy of adventuring through Azeroth.
 * **Zero Server Impact**: All LLM processing runs in a separate bridge service with a thread-pool worker model. The game server simply drops event rows into the database and moves on, never waiting on an API call. Responses flow back through the same queue and are delivered on the next world tick, keeping your server performance completely unaffected.
 
@@ -54,8 +61,22 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
   the bridge gives the exchange one RP subject and cross-zone context,
   adds irregular participant-name references when useful, then
   delivers naturally staggered Guild lines. It is gated by
-  `GuildChatter.Chance`, `ConversationChance`, and `Cooldown`, and
-  remains off by default.
+  `GuildChatter.Chance`, `ConversationChance`, and `Cooldown`. The
+  master Guild Chat feature now defaults to enabled.
+* **Player-driven Guild replies**: Every eligible player Guild message
+  receives at least one bot reply. The response can be a single answer,
+  multiple independent answers, or a Guild conversation. Per-login
+  memory combines recent verbatim lines with a compact rolling summary,
+  supports subtle callbacks and opinion continuity, and is cleared on
+  both logout and login. Summary calls always reuse the configured
+  chatter provider and model.
+* **Guild login greetings**: A full real-player login schedules a
+  session-safe greeting without assuming playerbots are immediately
+  ready. Quick 2-5-second reactions remain possible, while ordinary and
+  busy delay bands make later greetings more common. Player speech,
+  logout, relogin, Guild changes, and stale sessions cancel the greeting.
+  Delivered greetings join the current Guild session history so an
+  immediate player reply retains the greeting as context.
 
 ### 2026-06-19 - Chat-Type Master Toggles & Subsystem Classifier
 
@@ -645,6 +666,12 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260621_guild_chatter.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260724_guild_player_sessions.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260725_guild_login_greeting.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -684,6 +711,12 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260621_guild_chatter.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260724_guild_player_sessions.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260725_guild_login_greeting.sql
 ```
 
 Migrations are idempotent — safe to run on an already

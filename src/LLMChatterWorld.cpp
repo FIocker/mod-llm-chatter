@@ -5,6 +5,7 @@
 #include "LLMChatterAmbient.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterDelivery.h"
+#include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterNearby.h"
@@ -316,6 +317,10 @@ public:
             "DELETE FROM llm_group_chat_history");
         CharacterDatabase.Execute(
             "DELETE FROM llm_group_cached_responses");
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_guild_session_history");
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_guild_chat_sessions");
 
         LoadTransportCache();
 
@@ -336,6 +341,8 @@ public:
 
     void OnUpdate(uint32 /*diff*/) override
     {
+        UpdatePendingGuildLoginGreetings();
+
         if (!sLLMChatterConfig->IsEnabled())
             return;
 
@@ -696,6 +703,14 @@ private:
             std::vector<Player*> members = it->second;
             if (members.empty())
                 continue;
+
+            if (WasGuildPlayerInteractionRecent(
+                    guildId,
+                    sLLMChatterConfig
+                        ->_guildPlayerIdleSuppressionSeconds))
+            {
+                continue;
+            }
 
             auto cdIt = guildCooldowns.find(guildId);
             if (cdIt != guildCooldowns.end()

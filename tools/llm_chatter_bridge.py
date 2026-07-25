@@ -358,7 +358,7 @@ def fetch_pending_events(db, config, max_count):
               OR e.event_type = 'player_general_msg'
               OR e.event_type = 'player_enters_zone'
               OR e.event_type LIKE 'proximity_%%'
-              OR e.event_type = 'guild_idle_chatter'
+              OR e.event_type LIKE 'guild_%%'
               OR (
                   EXISTS (
                       SELECT 1 FROM characters c
@@ -424,6 +424,26 @@ def fetch_pending_events(db, config, max_count):
                         "event_type=%s",
                         et, exc_info=True,
                     )
+            elif et in (
+                'guild_player_message',
+                'guild_login_greeting',
+            ):
+                try:
+                    extra = event.get('extra_data')
+                    if isinstance(extra, str):
+                        extra = json.loads(extra)
+                    if isinstance(extra, dict):
+                        session_id = int(
+                            extra.get('session_id') or 0
+                        )
+                        if session_id:
+                            group_id = -session_id
+                except Exception:
+                    logger.error(
+                        "Failed to parse Guild session "
+                        "from extra_data",
+                        exc_info=True,
+                    )
             event['_group_id'] = group_id
             claimed.append(event)
 
@@ -473,6 +493,8 @@ EVENT_LOG_OVERRIDES = {
     'bot_group_screenshot_observation': 'Screenshot vision',
     'bot_group_general_reaction': 'General-to-party relay',
     'player_general_msg': 'General chat event',
+    'guild_player_message': 'Guild player turn',
+    'guild_login_greeting': 'Guild login greeting',
     'player_enters_zone': 'Zone intrusion',
     'bot_group_low_health': 'State callout',
     'bot_group_oom': 'State callout',
@@ -757,6 +779,21 @@ def process_single_event(event, client, config):
                     " SET status = 'skipped'"
                     " WHERE id = %s",
                     (event_id,)
+                )
+                db.commit()
+                return False
+            if (
+                event_type.startswith('guild_')
+                and str(config.get(
+                    'LLMChatter.GuildChatter.Enable',
+                    '0',
+                )).strip() != '1'
+            ):
+                cursor.execute(
+                    "UPDATE llm_chatter_events "
+                    "SET status = 'skipped' "
+                    "WHERE id = %s",
+                    (event_id,),
                 )
                 db.commit()
                 return False
@@ -1519,9 +1556,9 @@ def main():
     logger.info("Group chatter:")
     logger.info(
         f"  IdleChance: "
-        f"{config.get('LLMChatter.GroupChatter.IdleChance', 10)}%"
+        f"{config.get('LLMChatter.GroupChatter.IdleChance', 15)}%"
         f"  IdleCooldown: "
-        f"{config.get('LLMChatter.GroupChatter.IdleCooldown', 30)}s"
+        f"{config.get('LLMChatter.GroupChatter.IdleCooldown', 40)}s"
     )
     logger.info(
         f"  KillChanceNormal: "
@@ -1574,6 +1611,137 @@ def main():
         f"{config.get('LLMChatter.GeneralChat.QuestionChance', 80)}%"
         f"  Cooldown: "
         f"{config.get('LLMChatter.GeneralChat.Cooldown', 30)}s"
+    )
+    logger.info("-" * 60)
+    logger.info("Guild chatter:")
+    guild_reply_conversation_chance = config.get(
+        'LLMChatter.GuildChatter.'
+        'PlayerReplies.ConversationChance',
+        20,
+    )
+    guild_history_chance = config.get(
+        'LLMChatter.GuildChatter.'
+        'HistoryContextChance',
+        35,
+    )
+    guild_history_messages = config.get(
+        'LLMChatter.GuildChatter.'
+        'HistoryContextMessages',
+        15,
+    )
+    guild_multi_reply_chance = config.get(
+        'LLMChatter.GuildChatter.'
+        'PlayerReplies.MultiReplyChance',
+        15,
+    )
+    guild_multi_addressed_bonus = config.get(
+        'LLMChatter.GuildChatter.'
+        'PlayerReplies.MultiAddressedBonus',
+        15,
+    )
+    guild_max_responders = config.get(
+        'LLMChatter.GuildChatter.'
+        'PlayerReplies.MaxResponders',
+        3,
+    )
+    guild_summary_threshold = config.get(
+        'LLMChatter.GuildChatter.'
+        'SessionMemory.SummaryThresholdChars',
+        3500,
+    )
+    guild_summary_input_cap = config.get(
+        'LLMChatter.GuildChatter.'
+        'SessionMemory.SummaryMaxInputChars',
+        8000,
+    )
+    guild_recent_messages = config.get(
+        'LLMChatter.GuildChatter.'
+        'SessionMemory.KeepRecentMessages',
+        15,
+    )
+    guild_first_delay_min = config.get(
+        'LLMChatter.GuildChatter.'
+        'PlayerReplies.FirstDelayMin',
+        8,
+    )
+    guild_first_delay_max = config.get(
+        'LLMChatter.GuildChatter.'
+        'PlayerReplies.FirstDelayMax',
+        20,
+    )
+    guild_login_enable = config.get(
+        'LLMChatter.GuildChatter.'
+        'LoginGreeting.Enable',
+        1,
+    )
+    guild_login_quick_chance = config.get(
+        'LLMChatter.GuildChatter.'
+        'LoginGreeting.QuickChance',
+        20,
+    )
+    guild_login_busy_chance = config.get(
+        'LLMChatter.GuildChatter.'
+        'LoginGreeting.BusyChance',
+        25,
+    )
+    guild_login_multi_chance = config.get(
+        'LLMChatter.GuildChatter.'
+        'LoginGreeting.MultiReplyChance',
+        20,
+    )
+    guild_login_max_responders = config.get(
+        'LLMChatter.GuildChatter.'
+        'LoginGreeting.MaxResponders',
+        3,
+    )
+    logger.info(
+        f"  Enable: "
+        f"{config.get('LLMChatter.GuildChatter.Enable', 0)}"
+        f"  PlayerReplies: "
+        f"{config.get('LLMChatter.GuildChatter.PlayerReplies.Enable', 1)}"
+        f"  SessionMemory: "
+        f"{config.get('LLMChatter.GuildChatter.SessionMemory.Enable', 1)}"
+    )
+    logger.info(
+        f"  AmbientHistoryChance: "
+        f"{guild_history_chance}%"
+        f"  AmbientHistoryMessages: "
+        f"{guild_history_messages}"
+    )
+    logger.info(
+        f"  ConversationChance: "
+        f"{guild_reply_conversation_chance}%"
+        f"  MultiReplyChance: "
+        f"{guild_multi_reply_chance}%"
+        f"  MultiAddressedBonus: "
+        f"{guild_multi_addressed_bonus}%"
+        f"  MaxResponders: "
+        f"{guild_max_responders}"
+    )
+    logger.info(
+        f"  FirstDelay: "
+        f"{guild_first_delay_min}-"
+        f"{guild_first_delay_max}s"
+        f"  RecentMessages: "
+        f"{guild_recent_messages}"
+    )
+    logger.info(
+        f"  LoginGreeting: "
+        f"{guild_login_enable}"
+        f"  QuickChance: "
+        f"{guild_login_quick_chance}%"
+        f"  BusyChance: "
+        f"{guild_login_busy_chance}%"
+        f"  MultiReplyChance: "
+        f"{guild_login_multi_chance}%"
+        f"  MaxResponders: "
+        f"{guild_login_max_responders}"
+    )
+    logger.info(
+        f"  SummaryThreshold: "
+        f"{guild_summary_threshold} chars"
+        f"  SummaryInputCap: "
+        f"{guild_summary_input_cap} chars"
     )
     logger.info("-" * 60)
     logger.info("Raid chatter:")
