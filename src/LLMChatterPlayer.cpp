@@ -13,9 +13,11 @@
 #include "BattlegroundAB.h"
 #include "BattlegroundEY.h"
 #include "BattlegroundWS.h"
+#include "AiObjectContext.h"
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
+#include "ChatHelper.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "Group.h"
@@ -23,6 +25,7 @@
 #include "MapMgr.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
+#include "PlayerbotAI.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
@@ -31,6 +34,7 @@
 #include "WorldSessionMgr.h"
 
 #include <algorithm>
+#include <cctype>
 #include <ctime>
 #include <cstdio>
 #include <map>
@@ -112,6 +116,117 @@ static std::map<uint32, time_t> _generalChatCooldowns;
 static std::mutex _generalChatCooldownsMutex;
 static std::map<std::pair<uint32, uint32>, time_t> _whisperCooldowns;
 static std::mutex _whisperCooldownsMutex;
+
+static std::string TrimAndLower(std::string value)
+{
+    auto first = std::find_if_not(
+        value.begin(), value.end(),
+        [](unsigned char c) { return std::isspace(c); });
+    auto last = std::find_if_not(
+        value.rbegin(), value.rend(),
+        [](unsigned char c) { return std::isspace(c); }).base();
+    if (first >= last)
+        return "";
+
+    value = std::string(first, last);
+    std::transform(
+        value.begin(), value.end(), value.begin(),
+        [](unsigned char c) { return std::tolower(c); });
+    return value;
+}
+
+static bool StartsWithCommand(
+    std::string const& message, std::string const& command)
+{
+    return message == command
+        || (message.size() > command.size()
+            && message.compare(0, command.size(), command) == 0
+            && std::isspace(
+                static_cast<unsigned char>(message[command.size()])));
+}
+
+// The Playerbots command parser runs after this module's private-chat hook.
+// Keep automation/control whispers out of the LLM queue, while allowing a
+// normal sentence such as "can you help me?" to remain conversational.
+static bool IsRegisteredPlayerbotCommand(
+    Player* receiver, std::string const& message)
+{
+    PlayerbotAI* botAI = GET_PLAYERBOT_AI(receiver);
+    AiObjectContext* context = botAI
+        ? botAI->GetAiObjectContext() : nullptr;
+    if (!context)
+        return false;
+
+    if (context->GetTrigger(message))
+        return true;
+
+    // Match the Playerbots parser's progressive command-name lookup. This
+    // recognizes registered multi-word commands and strategy names such as
+    // "onyxia" without maintaining a duplicate static command catalog.
+    size_t position = std::string::npos;
+    while (true)
+    {
+        size_t found = message.rfind(' ', position);
+        if (found == std::string::npos || !found)
+            break;
+
+        if (context->GetTrigger(message.substr(0, found)))
+            return true;
+        position = found - 1;
+    }
+    return false;
+}
+
+static bool IsPlayerbotWhisperCommand(
+    Player* receiver, std::string message)
+{
+    std::string const originalMessage = message;
+    message = TrimAndLower(message);
+    if (message.empty())
+        return false;
+
+    // Party/raid command filters, e.g. "@tank follow" or "@group1 attack".
+    while (message.front() == '@')
+    {
+        size_t separator = message.find_first_of(" \t");
+        if (separator == std::string::npos)
+            return true;
+        message = TrimAndLower(message.substr(separator + 1));
+        if (message.empty())
+            return true;
+    }
+
+    // GM/playerbot console-style commands must never become LLM prompts.
+    if (message.front() == '.')
+        return true;
+
+    static std::vector<std::string> const specialCommands = {
+        "accept", "attack", "autogear", "bank", "b", "cast", "co",
+        "destroy", "disperse", "do", "drop", "e", "flee", "follow",
+        "focus heal", "gb", "give leader", "glyphs", "grind", "help",
+        "home", "leave", "lfg", "ll", "los", "maintenance",
+        "mark rti", "master fishing", "nc", "open items", "outfit",
+        "pet", "playerbot", "pull", "quests", "r", "release", "reset",
+        "revive", "roll", "rti", "rtsc", "runaway", "s", "spells",
+        "ss", "stats", "stay", "summon", "tame", "talents", "talk",
+        "trainer", "u", "ue", "wait for attack", "who"
+    };
+    for (std::string const& command : specialCommands)
+        if (StartsWithCommand(message, command))
+            return true;
+
+    if (IsRegisteredPlayerbotCommand(receiver, message))
+        return true;
+
+    // Playerbots treats an item link as a command when automatic trade on
+    // item mention is enabled. Keep a link-only request out of the LLM path.
+    if (ChatHelper::parseableItem(originalMessage))
+        return true;
+
+    // Currency-transfer commands, for example "2g 3s 5c".
+    return std::isdigit(static_cast<unsigned char>(message.front()))
+        && message.find_first_of("gsc") != std::string::npos;
+}
 
 // Per-group subzone cooldown keyed by group counter.
 // Uses the same configured cooldown as
@@ -1166,6 +1281,11 @@ public:
             || type != CHAT_MSG_WHISPER || !player || !receiver
             || IsPlayerBot(player) || !IsPlayerBot(receiver)
             || language == LANG_ADDON || msg.empty())
+            return true;
+
+        if (sConfigMgr->GetOption<bool>(
+                "LLMChatter.Whisper.SkipPlayerbotCommands", true)
+            && IsPlayerbotWhisperCommand(receiver, msg))
             return true;
 
         uint32 chance = sConfigMgr->GetOption<uint32>("LLMChatter.Whisper.Chance", 100);
