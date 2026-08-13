@@ -547,6 +547,10 @@ LLMChatter.Whisper.Enable = 1
 LLMChatter.Whisper.Chance = 100
 # Minimum seconds between replies from the same bot to a player.
 LLMChatter.Whisper.Cooldown = 8
+# Do not queue Playerbots control commands (for example "talents", "follow",
+# "@tank attack", or "co +aoe") as LLM prompts. The normal Playerbots command
+# parser still receives and executes them. Default: 1
+LLMChatter.Whisper.SkipPlayerbotCommands = 1
 
 #
 #   LLMChatter.BGChatter.Enable
