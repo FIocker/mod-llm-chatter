@@ -1350,7 +1350,13 @@ def main():
         )
         if not api_key:
             sys.exit(1)
-        client = anthropic.Anthropic(api_key=api_key)
+        kwargs = {'api_key': api_key}
+        base_url = config.get(
+            'LLMChatter.Anthropic.BaseUrl', ''
+        ).strip()
+        if base_url:
+            kwargs['base_url'] = base_url.rstrip('/') + '/'
+        client = anthropic.Anthropic(**kwargs)
 
     # Get poll interval
     poll_interval = int(config.get(

@@ -481,9 +481,17 @@ def _is_model_error(exc):
 def _probe_anthropic(config, model):
     """Make a minimal Anthropic call; returns text or raises."""
     import anthropic
-    client = anthropic.Anthropic(
-        api_key=config.get('LLMChatter.Anthropic.ApiKey', ''),
-    )
+    kwargs = {
+        'api_key': config.get(
+            'LLMChatter.Anthropic.ApiKey', ''
+        ),
+    }
+    base_url = config.get(
+        'LLMChatter.Anthropic.BaseUrl', ''
+    ).strip()
+    if base_url:
+        kwargs['base_url'] = base_url.rstrip('/') + '/'
+    client = anthropic.Anthropic(**kwargs)
     resp = client.messages.create(
         model=model,
         max_tokens=5,
@@ -495,16 +503,27 @@ def _probe_anthropic(config, model):
     return resp.content[0].text.strip()
 
 
-def _probe_openai_compatible(client, model):
+def _probe_openai_compatible(
+    client, model, config=None, provider=''
+):
     """Make a minimal OpenAI-compatible call; text or raises."""
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
+    kwargs = {
+        'model': model,
+        'max_tokens': 150,
+        'messages': [{
             'role': 'user',
             'content': 'Reply with the single word: OK',
         }],
-    )
+    }
+    if provider == 'openrouter' and config:
+        disable_thinking = str(config.get(
+            'LLMChatter.OpenRouter.DisableThinking', '0'
+        )).strip().lower() in ('1', 'true', 'yes', 'on')
+        if disable_thinking:
+            kwargs['extra_body'] = {
+                'thinking': {'type': 'disabled'},
+            }
+    resp = client.chat.completions.create(**kwargs)
     content = resp.choices[0].message.content
     if isinstance(content, str):
         return content.strip()
@@ -576,7 +595,9 @@ def _check_llm_probe(config):
             client = _build_openai_compatible_client(
                 config, provider
             )
-            text = _probe_openai_compatible(client, model)
+            text = _probe_openai_compatible(
+                client, model, config, provider
+            )
 
         if text:
             return _result(
