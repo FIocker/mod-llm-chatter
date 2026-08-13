@@ -539,6 +539,15 @@ LLMChatter.GeneralChannel.Enable = 1
 #
 LLMChatter.GeneralChat.PlayerReplyEnable = 1
 
+# Whisper replies to individual Playerbots. Requires the core
+# private-chat hook patch shipped with this server build.
+# Enable: 0 = ignore player whispers to bots, 1 = reply.
+LLMChatter.Whisper.Enable = 1
+# Percentage chance that an eligible bot answers a whisper.
+LLMChatter.Whisper.Chance = 100
+# Minimum seconds between replies from the same bot to a player.
+LLMChatter.Whisper.Cooldown = 8
+
 #
 #   LLMChatter.BGChatter.Enable
 #       Enable BG-specific chatter (flag events, node captures, match

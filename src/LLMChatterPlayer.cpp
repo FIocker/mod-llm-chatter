@@ -110,6 +110,8 @@ void EnsureBotInGeneralChannel(
 
 static std::map<uint32, time_t> _generalChatCooldowns;
 static std::mutex _generalChatCooldownsMutex;
+static std::map<std::pair<uint32, uint32>, time_t> _whisperCooldowns;
+static std::mutex _whisperCooldownsMutex;
 
 // Per-group subzone cooldown keyed by group counter.
 // Uses the same configured cooldown as
@@ -768,6 +770,7 @@ public:
               "LLMChatterPlayerScript",
               {PLAYERHOOK_ON_LOGIN,
                PLAYERHOOK_ON_UPDATE,
+               PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT,
                PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
                PLAYERHOOK_ON_UPDATE_ZONE,
                PLAYERHOOK_ON_UPDATE_AREA,
@@ -1151,6 +1154,60 @@ public:
             false
         );
 
+        return true;
+    }
+
+    bool OnPlayerCanUseChat(
+        Player* player, uint32 type, uint32 language,
+        std::string& msg, Player* receiver) override
+    {
+        if (!sLLMChatterConfig || !sLLMChatterConfig->IsEnabled()
+            || !sConfigMgr->GetOption<bool>("LLMChatter.Whisper.Enable", true)
+            || type != CHAT_MSG_WHISPER || !player || !receiver
+            || IsPlayerBot(player) || !IsPlayerBot(receiver)
+            || language == LANG_ADDON || msg.empty())
+            return true;
+
+        uint32 chance = sConfigMgr->GetOption<uint32>("LLMChatter.Whisper.Chance", 100);
+        if (!chance || urand(1, 100) > chance)
+            return true;
+
+        uint32 cooldown = sConfigMgr->GetOption<uint32>("LLMChatter.Whisper.Cooldown", 8);
+        time_t now = time(nullptr);
+        std::pair<uint32, uint32> key(player->GetGUID().GetCounter(), receiver->GetGUID().GetCounter());
+        {
+            std::lock_guard<std::mutex> guard(_whisperCooldownsMutex);
+            auto it = _whisperCooldowns.find(key);
+            if (it != _whisperCooldowns.end() && now - it->second < static_cast<time_t>(cooldown))
+                return true;
+            _whisperCooldowns[key] = now;
+        }
+
+        std::string safeMsg = NormalizeChatTextForDb(msg, sLLMChatterConfig->_maxMessageLength);
+        if (safeMsg.empty())
+            return true;
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_whisper_history (player_guid, bot_guid, speaker_guid, is_bot, message) "
+            "VALUES ({}, {}, {}, 0, '{}')",
+            player->GetGUID().GetCounter(), receiver->GetGUID().GetCounter(),
+            player->GetGUID().GetCounter(), EscapeString(safeMsg));
+
+        std::string extraData = "{"
+            "\"player_name\":\"" + JsonEscape(player->GetName()) + "\","
+            "\"player_message\":\"" + JsonEscape(safeMsg) + "\","
+            "\"zone_id\":" + std::to_string(player->GetZoneId()) + ","
+            "\"zone_name\":\"\","
+            "\"bot_guids\":[" + std::to_string(receiver->GetGUID().GetCounter()) + "],"
+            "\"bot_names\":[\"" + JsonEscape(receiver->GetName()) + "\"],"
+            "\"whisper_player_guid\":" + std::to_string(player->GetGUID().GetCounter()) + "}";
+        QueueChatterEvent(
+            "player_general_msg", "player", player->GetZoneId(), player->GetMapId(),
+            GetChatterEventPriority("player_general_msg"),
+            "whisper:" + std::to_string(player->GetGUID().GetCounter()) + ":" +
+                std::to_string(receiver->GetGUID().GetCounter()),
+            player->GetGUID().GetCounter(), player->GetName(), receiver->GetGUID().GetCounter(),
+            receiver->GetName(), 0, EscapeString(extraData), 0, 120, false);
         return true;
     }
 
