@@ -273,6 +273,12 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 #
 LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 
+#   LLMChatter.Anthropic.BaseUrl
+#       Optional Anthropic-compatible API base URL. Leave blank to use
+#       api.anthropic.com. The client appends /v1/messages automatically.
+#
+LLMChatter.Anthropic.BaseUrl =
+
 ###############################################################################
 # OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
 ###############################################################################
@@ -374,6 +380,15 @@ LLMChatter.OpenRouter.ReasoningExclude = 0
 #       Clamped to the range 1-8. Default: 1
 #
 LLMChatter.OpenRouter.MaxTokensMultiplier = 1
+
+#
+#   LLMChatter.OpenRouter.DisableThinking
+#       Send the OpenAI-compatible request option
+#       {"thinking":{"type":"disabled"}}. Use this only for providers
+#       and models that support it, such as DeepSeek V4 Flash.
+#       Default: 0
+#
+LLMChatter.OpenRouter.DisableThinking = 0
 
 #
 #   LLMChatter.OpenRouter.HttpReferer

@@ -176,6 +176,17 @@ def _apply_google_options(kwargs, config):
         kwargs['reasoning_effort'] = effort
 
 
+def _apply_openrouter_options(kwargs, config):
+    """Attach optional OpenRouter-compatible request options."""
+    disable_thinking = str(config.get(
+        'LLMChatter.OpenRouter.DisableThinking', '0'
+    )).strip().lower() in ('1', 'true', 'yes', 'on')
+    if disable_thinking:
+        kwargs['extra_body'] = {
+            'thinking': {'type': 'disabled'},
+        }
+
+
 def _effective_max_tokens(provider, config, max_tokens):
     """Adjust provider-specific output budget."""
     if provider == 'google':
@@ -325,12 +336,17 @@ def get_llm_client(config):
             _main_client = openai.OpenAI(**kwargs)
         else:
             import anthropic
-            _main_client = anthropic.Anthropic(
-                api_key=config.get(
-                    'LLMChatter.Anthropic.ApiKey',
-                    '',
+            kwargs = {
+                'api_key': config.get(
+                    'LLMChatter.Anthropic.ApiKey', '',
                 ),
-            )
+            }
+            base_url = config.get(
+                'LLMChatter.Anthropic.BaseUrl', ''
+            ).strip()
+            if base_url:
+                kwargs['base_url'] = base_url.rstrip('/') + '/'
+            _main_client = anthropic.Anthropic(**kwargs)
 
         _main_client_provider = provider
         return _main_client
