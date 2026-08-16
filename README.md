@@ -454,7 +454,10 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 
 **4. Load talent data (optional)**
 
-Populates talent and spell lookup tables that give the LLM richer context about each bot's specialization, resulting in more accurate class-aware dialogue. Uses `INSERT IGNORE` and is safe to run on any existing database.
+Populates talent and spell lookup tables that give the LLM richer context
+about each bot's specialization. Worldserver treats `talenttab_dbc` rows as
+runtime DBC overrides, so the included masks and ordering match the WotLK
+3.3.5a client DBC.
 
 ```bash
 docker exec -i ac-database mysql -uroot -ppassword acore_world < \
@@ -499,7 +502,10 @@ python llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 
 **5. Load talent data (optional)**
 
-Populates talent and spell lookup tables that give the LLM richer context about each bot's specialization, resulting in more accurate class-aware dialogue. Uses `INSERT IGNORE`,  safe on any existing database.
+Populates talent and spell lookup tables that give the LLM richer context
+about each bot's specialization. Worldserver treats `talenttab_dbc` rows as
+runtime DBC overrides, so the included masks and ordering match the WotLK
+3.3.5a client DBC.
 
 ```bash
 mysql -uroot -ppassword acore_world < \
