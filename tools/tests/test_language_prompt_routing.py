@@ -87,6 +87,16 @@ def test_de_language_rule_is_available():
     assert "never as a guide" in rule
 
 
+def test_ko_language_rule_is_available():
+    chatter_shared.set_language("KO")
+    rule = chatter_shared.get_language_rule()
+    assert "Korean" in rule
+    assert "message" in rule
+    assert "action" in rule
+    assert chatter_shared.get_language_label() == "Korean"
+    assert chatter_shared.is_supported_language_code("KO")
+
+
 def test_anti_repetition_block_neutralizes_language():
     chatter_shared.set_language("DE")
     block = chatter_shared.build_anti_repetition_context(
@@ -257,6 +267,7 @@ def test_message_only_repair_schema():
 def main() -> int:
     tests = [
         test_de_language_rule_is_available,
+        test_ko_language_rule_is_available,
         test_anti_repetition_block_neutralizes_language,
         test_unknown_language_warns_and_falls_back,
         test_json_helpers_put_language_in_user_and_system_prompts,
