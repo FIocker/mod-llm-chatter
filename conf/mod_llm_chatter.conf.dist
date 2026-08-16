@@ -466,6 +466,7 @@ LLMChatter.ChatterMode = roleplay
 #           FR      - French
 #           DE      - German
 #           ES      - Spanish
+#           KO      - Korean
 #           PT      - Portuguese
 #           RU      - Russian
 #       Adding a new language:
@@ -483,7 +484,7 @@ LLMChatter.ChatterMode = roleplay
 #           LLMChatter.ProximityChatter.MaxTokensPerLine if
 #           the language tokenizes significantly larger than
 #           English (French/German/Spanish need ~80-100;
-#           Russian/Chinese/Japanese can need 150+).
+#           Russian/Korean/Chinese/Japanese can need 150+).
 #       Changes require a bridge restart
 #       (docker restart ac-llm-chatter-bridge).
 #       Default: GB

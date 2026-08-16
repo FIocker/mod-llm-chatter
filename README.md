@@ -54,6 +54,14 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 
 ## Changelog
 
+### 2026-08-16 - Korean Language and Unicode Cleanup
+
+* **Korean language support**: `LLMChatter.Language = KO` now resolves
+  to Korean and applies the existing localized prompt rules.
+* **Unicode-safe emoji cleanup**: Emoji removal no longer treats the
+  entire range from U+24C2 through U+1F251 as emoji. Hangul, CJK, and
+  other scripts inside that former range are preserved.
+
 ### Guild Channel Chatter
 
 * **Guild chatter**: Optional ambient Guild statements and

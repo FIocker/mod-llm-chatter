@@ -1216,6 +1216,7 @@ _LANGUAGE_LABELS = {
     "ES": "Spanish",
     "FR": "French",
     "GB": "English",
+    "KO": "Korean",
     "PT": "Portuguese",
     "RU": "Russian",
     "US": "English",
