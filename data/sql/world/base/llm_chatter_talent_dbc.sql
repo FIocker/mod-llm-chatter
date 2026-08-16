@@ -7,22 +7,21 @@
 -- spell_dbc (talent spell names only).
 --
 -- IMPORTANT: talent_dbc is intentionally NOT
--- touched here. The server core populates it
--- from client DBC files at startup. Inserting
--- incomplete rows into talent_dbc will corrupt
--- talent data and break talent assignment.
+-- touched here. The server core loads it from
+-- client DBC files at startup. Inserting incomplete
+-- rows into talent_dbc will corrupt talent data and
+-- break talent assignment.
 --
--- talenttab_dbc is NOT populated by the server,
--- so we provide full rows with all critical
--- columns (ClassMask, OrderIndex, etc.) using
--- ON DUPLICATE KEY UPDATE for safety.
+-- The server also loads TalentTab.dbc, then replaces
+-- matching in-memory rows with talenttab_dbc rows.
+-- Keep every field consumed by TalentTabEntryfmt
+-- equivalent to the WotLK 3.3.5a client DBC.
 
 -- =========================
 -- talenttab_dbc (33 talent trees)
 -- =========================
--- Full rows with ClassMask, OrderIndex, and
--- PetTalentMask to avoid corrupting talent
--- assignment on fresh installs.
+-- Includes every field consumed by the core:
+-- ClassMask, OrderIndex, and PetTalentMask.
 INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (81, 'Arcane', 128, 0, 0, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
 INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (41, 'Fire', 128, 1, 0, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
 INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (61, 'Frost', 128, 2, 0, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
@@ -53,9 +52,9 @@ INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, 
 INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (398, 'Blood', 32, 0, 0, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
 INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (399, 'Frost', 32, 1, 0, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
 INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (400, 'Unholy', 32, 2, 0, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
-INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (409, 'Tenacity', 0, 0, 1, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
-INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (410, 'Ferocity', 0, 1, 2, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
-INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (411, 'Cunning', 0, 2, 4, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
+INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (409, 'Tenacity', 0, 0, 2, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
+INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (410, 'Ferocity', 0, 0, 1, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
+INSERT INTO `talenttab_dbc` (`ID`, `Name_Lang_enUS`, `ClassMask`, `OrderIndex`, `PetTalentMask`, `RaceMask`) VALUES (411, 'Cunning', 0, 0, 4, 0) ON DUPLICATE KEY UPDATE `Name_Lang_enUS` = VALUES(`Name_Lang_enUS`), `ClassMask` = VALUES(`ClassMask`), `OrderIndex` = VALUES(`OrderIndex`), `PetTalentMask` = VALUES(`PetTalentMask`), `RaceMask` = VALUES(`RaceMask`);
 
 -- =========================
 -- spell_dbc (869 talent spell names)
