@@ -216,7 +216,7 @@ static int GetGoInterestScore(GameObject* go)
 static bool IsInterestingCreature(
     Creature* cr, Player* bot)
 {
-    if (!cr || !cr->IsAlive())
+    if (!cr || !bot || !cr->IsAlive())
         return false;
 
     if (cr->IsPet() || cr->IsTotem()
@@ -225,6 +225,8 @@ static bool IsInterestingCreature(
     if (cr->IsInCombat())
         return false;
     if (cr->IsPlayer())
+        return false;
+    if (cr->IsHostileTo(bot))
         return false;
 
     CreatureTemplate const* tmpl =
