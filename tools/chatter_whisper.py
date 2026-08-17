@@ -106,7 +106,7 @@ def _prompt(bot, identity, player_name, player_message, history, mode,
                                    skip_emote=True, skip_action_rng=True)
 
 
-def process_player_whisper_event(event, db, client, config):
+def process_player_whisper_event(db, client, config, event):
     event_id = event['id']
     extra = parse_extra_data(event.get('extra_data'), event_id,
                              'player_whisper_msg')
