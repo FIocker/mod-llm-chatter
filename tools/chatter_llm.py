@@ -132,15 +132,6 @@ def _apply_openrouter_options(kwargs, config):
         kwargs['extra_body'] = {
             'thinking': {'type': 'disabled'},
         }
-        # OpenCode Go's DeepSeek V4 route also requires the OpenAI-style
-        # effort field. Without it, short structured Chatter calls can spend
-        # their entire completion budget on hidden reasoning and return an
-        # empty ``content`` field with finish_reason="length".
-        base_url = str(config.get(
-            'LLMChatter.OpenRouter.BaseUrl', ''
-        )).rstrip('/').lower()
-        if base_url == 'https://opencode.ai/zen/go/v1':
-            kwargs['reasoning_effort'] = 'none'
 
 
 def _effective_max_tokens(provider, config, max_tokens):
