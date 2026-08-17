@@ -481,17 +481,7 @@ def _is_model_error(exc):
 def _probe_anthropic(config, model):
     """Make a minimal Anthropic call; returns text or raises."""
     import anthropic
-    kwargs = {
-        'api_key': config.get(
-            'LLMChatter.Anthropic.ApiKey', ''
-        ),
-    }
-    base_url = config.get(
-        'LLMChatter.Anthropic.BaseUrl', ''
-    ).strip()
-    if base_url:
-        kwargs['base_url'] = base_url.rstrip('/') + '/'
-    client = anthropic.Anthropic(**kwargs)
+    client = create_anthropic_client(anthropic, config)
     resp = client.messages.create(
         model=model,
         max_tokens=5,
@@ -847,3 +837,4 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+from chatter_provider import create_anthropic_client
