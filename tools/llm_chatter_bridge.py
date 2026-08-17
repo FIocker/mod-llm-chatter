@@ -27,7 +27,11 @@ from typing import List
 
 import anthropic
 import openai
-from chatter_provider import create_anthropic_client
+from chatter_provider import (
+    create_anthropic_client,
+    get_openai_compatible_request_mode,
+    get_openai_compatible_thinking_style,
+)
 
 import chatter_ambient
 
@@ -1447,6 +1451,36 @@ def main():
         logger.info(
             f"Thinking mode: "
             f"{'disabled (/no_think)' if disable_thinking else 'enabled'}"
+        )
+    elif provider == 'openrouter':
+        base_url = config.get(
+            'LLMChatter.OpenRouter.BaseUrl',
+            OPENROUTER_BASE_URL,
+        )
+        disable_thinking = str(config.get(
+            'LLMChatter.OpenAICompatible.DisableThinking', '0'
+        )).strip().lower() in ('1', 'true', 'yes', 'on')
+        logger.info(f"OpenAI-compatible URL: {base_url}")
+        logger.info(
+            "OpenAI-compatible request mode: %s",
+            get_openai_compatible_request_mode(config),
+        )
+        logger.info(
+            "Thinking control: %s",
+            get_openai_compatible_thinking_style(config)
+            if disable_thinking else 'omitted',
+        )
+    elif provider == 'anthropic':
+        base_url = config.get(
+            'LLMChatter.Anthropic.BaseUrl', ''
+        ).strip() or 'https://api.anthropic.com'
+        disable_thinking = str(config.get(
+            'LLMChatter.Anthropic.DisableThinking', '0'
+        )).strip().lower() in ('1', 'true', 'yes', 'on')
+        logger.info(f"Anthropic-compatible URL: {base_url}")
+        logger.info(
+            "Thinking control: %s",
+            'disabled' if disable_thinking else 'omitted',
         )
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(
