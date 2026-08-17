@@ -125,7 +125,7 @@ def _apply_google_options(kwargs, config):
 def _apply_openrouter_options(kwargs, config):
     """Attach optional OpenRouter-compatible request options."""
     disable_thinking = str(config.get(
-        'LLMChatter.OpenRouter.DisableThinking', '0'
+        'LLMChatter.OpenAICompatible.DisableThinking', '0'
     )).strip().lower() in ('1', 'true', 'yes', 'on')
     if disable_thinking:
         kwargs['extra_body'] = {

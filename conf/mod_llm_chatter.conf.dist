@@ -354,13 +354,13 @@ LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
 
 #
-#   LLMChatter.OpenRouter.DisableThinking
-#       Send the OpenAI-compatible request option
-#       {"thinking":{"type":"disabled"}}. Use this only for providers
-#       and models that support it, such as DeepSeek V4 Flash.
+#   LLMChatter.OpenAICompatible.DisableThinking
+#       Send the non-standard OpenAI-compatible request option
+#       {"thinking":{"type":"disabled"}}. This is for a custom endpoint
+#       that documents that payload; it is not an OpenRouter setting.
 #       Default: 0
 #
-LLMChatter.OpenRouter.DisableThinking = 0
+LLMChatter.OpenAICompatible.DisableThinking = 0
 
 #
 #   LLMChatter.OpenRouter.HttpReferer
@@ -539,14 +539,18 @@ LLMChatter.GeneralChannel.Enable = 1
 #
 LLMChatter.GeneralChat.PlayerReplyEnable = 1
 
-# Whisper replies to individual Playerbots. Requires the core
-# private-chat hook patch shipped with this server build.
+# Whisper replies to individual Playerbots. Uses AzerothCore's existing
+# private-chat hook; no Playerbots core patch is required.
 # Enable: 0 = ignore player whispers to bots, 1 = reply.
 LLMChatter.Whisper.Enable = 1
 # Percentage chance that an eligible bot answers a whisper.
 LLMChatter.Whisper.Chance = 100
 # Minimum seconds between replies from the same bot to a player.
 LLMChatter.Whisper.Cooldown = 8
+# Number of transcript rows retained per player/bot conversation.
+LLMChatter.Whisper.HistoryLimit = 48
+# Number of transcript rows included as model context.
+LLMChatter.Whisper.ContextLimit = 12
 # Do not queue Playerbots control commands (for example "talents", "follow",
 # "@tank attack", or "co +aoe") as LLM prompts. The normal Playerbots command
 # parser still receives and executes them. Default: 1

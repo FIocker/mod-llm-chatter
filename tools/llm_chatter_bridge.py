@@ -356,6 +356,7 @@ def fetch_pending_events(db, config, max_count):
               OR e.event_type LIKE 'bg_%%'
               OR e.event_type LIKE 'raid_%%'
               OR e.event_type = 'player_general_msg'
+              OR e.event_type = 'player_whisper_msg'
               OR e.event_type = 'player_enters_zone'
               OR e.event_type LIKE 'proximity_%%'
               OR e.event_type LIKE 'guild_%%'
@@ -444,6 +445,23 @@ def fetch_pending_events(db, config, max_count):
                         "from extra_data",
                         exc_info=True,
                     )
+            elif et == 'player_whisper_msg':
+                try:
+                    extra = event.get('extra_data')
+                    if isinstance(extra, str):
+                        extra = json.loads(extra)
+                    if isinstance(extra, dict):
+                        # A stable negative key serializes one private
+                        # conversation without colliding with a group/session.
+                        player_guid = int(extra.get('player_guid') or 0)
+                        bot_guid = int(extra.get('bot_guid') or 0)
+                        if player_guid and bot_guid:
+                            group_id = -((player_guid << 32) | bot_guid)
+                except Exception:
+                    logger.error(
+                        "Failed to parse whisper conversation key",
+                        exc_info=True,
+                    )
             event['_group_id'] = group_id
             claimed.append(event)
 
@@ -493,6 +511,7 @@ EVENT_LOG_OVERRIDES = {
     'bot_group_screenshot_observation': 'Screenshot vision',
     'bot_group_general_reaction': 'General-to-party relay',
     'player_general_msg': 'General chat event',
+    'player_whisper_msg': 'Private whisper event',
     'guild_player_message': 'Guild player turn',
     'guild_login_greeting': 'Guild login greeting',
     'player_enters_zone': 'Zone intrusion',
