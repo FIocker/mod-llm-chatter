@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'bot_group_wipe',
         'bot_group_corpse_run',
         'player_general_msg',
+        'player_whisper_msg',
         'minor_event',
         'bot_group_low_health',
         'bot_group_oom',
