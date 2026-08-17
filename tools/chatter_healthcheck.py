@@ -46,6 +46,16 @@ from chatter_constants import (
     GOOGLE_OPENAI_BASE_URL,
     OPENROUTER_BASE_URL,
 )
+from chatter_llm import (
+    _extract_anthropic_content,
+    _extract_responses_content,
+)
+from chatter_provider import (
+    apply_anthropic_options,
+    apply_openai_compatible_options,
+    create_anthropic_client,
+    get_openai_compatible_request_mode,
+)
 
 # Path to the base SQL that creates the required tables
 # (used in the "tables" check hint).
@@ -482,21 +492,41 @@ def _probe_anthropic(config, model):
     """Make a minimal Anthropic call; returns text or raises."""
     import anthropic
     client = create_anthropic_client(anthropic, config)
-    resp = client.messages.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
+    kwargs = {
+        'model': model,
+        'max_tokens': 5,
+        'messages': [{
             'role': 'user',
             'content': 'Reply with the single word: OK',
         }],
-    )
-    return resp.content[0].text.strip()
+    }
+    apply_anthropic_options(kwargs, config)
+    resp = client.messages.create(**kwargs)
+    return _extract_anthropic_content(resp, 'healthcheck') or ''
 
 
 def _probe_openai_compatible(
     client, model, config=None, provider=''
 ):
     """Make a minimal OpenAI-compatible call; text or raises."""
+    request_mode = 'chat'
+    if provider == 'openrouter' and config:
+        request_mode = get_openai_compatible_request_mode(config)
+
+    if request_mode == 'responses':
+        kwargs = {
+            'model': model,
+            'max_output_tokens': 150,
+            'input': 'Reply with the single word: OK',
+        }
+        apply_openai_compatible_options(
+            kwargs, config, request_mode='responses'
+        )
+        resp = client.responses.create(**kwargs)
+        return _extract_responses_content(
+            resp, 'healthcheck'
+        ) or ''
+
     kwargs = {
         'model': model,
         'max_tokens': 150,
@@ -506,13 +536,9 @@ def _probe_openai_compatible(
         }],
     }
     if provider == 'openrouter' and config:
-        disable_thinking = str(config.get(
-            'LLMChatter.OpenAICompatible.DisableThinking', '0'
-        )).strip().lower() in ('1', 'true', 'yes', 'on')
-        if disable_thinking:
-            kwargs['extra_body'] = {
-                'thinking': {'type': 'disabled'},
-            }
+        apply_openai_compatible_options(
+            kwargs, config, request_mode='chat'
+        )
     resp = client.chat.completions.create(**kwargs)
     content = resp.choices[0].message.content
     if isinstance(content, str):
@@ -837,4 +863,3 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
-from chatter_provider import create_anthropic_client
