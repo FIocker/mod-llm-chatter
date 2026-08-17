@@ -27,6 +27,7 @@ from chatter_constants import PERSONALITY_TRAITS
 from chatter_constants import GOOGLE_OPENAI_BASE_URL
 from chatter_constants import OPENROUTER_BASE_URL
 from chatter_db import mark_event
+from chatter_provider import create_anthropic_client
 
 logger = logging.getLogger(__name__)
 
@@ -432,17 +433,7 @@ def _generate_bot_tone(
             client = _openai.OpenAI(**kwargs)
         else:
             import anthropic as _anthropic
-            kwargs = {
-                'api_key': config.get(
-                    'LLMChatter.Anthropic.ApiKey', ''
-                ),
-            }
-            base_url = config.get(
-                'LLMChatter.Anthropic.BaseUrl', ''
-            ).strip()
-            if base_url:
-                kwargs['base_url'] = base_url.rstrip('/') + '/'
-            client = _anthropic.Anthropic(**kwargs)
+            client = create_anthropic_client(_anthropic, config)
     except Exception:
         pass
 
@@ -667,17 +658,7 @@ def _generate_bot_backstory(
             client = _openai.OpenAI(**kwargs)
         else:
             import anthropic as _anthropic
-            kwargs = {
-                'api_key': config.get(
-                    'LLMChatter.Anthropic.ApiKey', ''
-                ),
-            }
-            base_url = config.get(
-                'LLMChatter.Anthropic.BaseUrl', ''
-            ).strip()
-            if base_url:
-                kwargs['base_url'] = base_url.rstrip('/') + '/'
-            client = _anthropic.Anthropic(**kwargs)
+            client = create_anthropic_client(_anthropic, config)
     except Exception:
         pass
 

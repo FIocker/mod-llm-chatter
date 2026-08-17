@@ -13,6 +13,7 @@ from chatter_constants import (
     GOOGLE_OPENAI_BASE_URL,
     OPENROUTER_BASE_URL,
 )
+from chatter_provider import create_anthropic_client
 
 logger = logging.getLogger(__name__)
 
@@ -270,17 +271,7 @@ def get_llm_client(config):
             _main_client = openai.OpenAI(**kwargs)
         else:
             import anthropic
-            kwargs = {
-                'api_key': config.get(
-                    'LLMChatter.Anthropic.ApiKey', '',
-                ),
-            }
-            base_url = config.get(
-                'LLMChatter.Anthropic.BaseUrl', ''
-            ).strip()
-            if base_url:
-                kwargs['base_url'] = base_url.rstrip('/') + '/'
-            _main_client = anthropic.Anthropic(**kwargs)
+            _main_client = create_anthropic_client(anthropic, config)
 
         _main_client_provider = provider
         return _main_client
@@ -521,8 +512,8 @@ def _get_quick_analyze_client(config):
             )
             if not api_key:
                 return None, main_provider
-            _quick_analyze_client = anthropic.Anthropic(
-                api_key=api_key
+            _quick_analyze_client = create_anthropic_client(
+                anthropic, config, api_key
             )
         else:
             return None, main_provider

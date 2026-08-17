@@ -27,6 +27,7 @@ from typing import List
 
 import anthropic
 import openai
+from chatter_provider import create_anthropic_client
 
 import chatter_ambient
 
@@ -1369,13 +1370,7 @@ def main():
         )
         if not api_key:
             sys.exit(1)
-        kwargs = {'api_key': api_key}
-        base_url = config.get(
-            'LLMChatter.Anthropic.BaseUrl', ''
-        ).strip()
-        if base_url:
-            kwargs['base_url'] = base_url.rstrip('/') + '/'
-        client = anthropic.Anthropic(**kwargs)
+        client = create_anthropic_client(anthropic, config, api_key)
 
     # Get poll interval
     poll_interval = int(config.get(
