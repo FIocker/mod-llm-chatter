@@ -517,7 +517,7 @@ def _probe_openai_compatible(
     }
     if provider == 'openrouter' and config:
         disable_thinking = str(config.get(
-            'LLMChatter.OpenRouter.DisableThinking', '0'
+            'LLMChatter.OpenAICompatible.DisableThinking', '0'
         )).strip().lower() in ('1', 'true', 'yes', 'on')
         if disable_thinking:
             kwargs['extra_body'] = {
