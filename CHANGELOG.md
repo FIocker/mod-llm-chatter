@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-09-07 - OpenRouter Reasoning Controls
+
+* **Opt-in reasoning configuration**: OpenRouter requests can now send
+  model-specific reasoning effort and optionally exclude returned
+  reasoning text. Empty effort values preserve existing behavior, while
+  `none` explicitly disables reasoning on hybrid models.
+* **Reasoning-aware output budgets**: An optional multiplier protects
+  normal and quick-analysis responses from being consumed entirely by
+  reasoning tokens. It applies only while reasoning is enabled.
+* **Request-shape regression coverage**: Focused tests protect default,
+  explicitly disabled, and enabled reasoning behavior across both
+  OpenRouter request paths.
+
 ### 2026-09-07 - Playerbot Selector Command Filtering
 
 * **Selector commands excluded from chatter**: Party commands using

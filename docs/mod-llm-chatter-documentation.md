@@ -588,6 +588,25 @@ LLMChatter.Model = openai/gpt-4o-mini
 LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 ```
 
+Reasoning is opt-in for OpenRouter. An empty effort preserves the
+provider/model defaults; `none` explicitly disables reasoning on hybrid
+models. Higher efforts share the response token budget with visible
+output, so increase the multiplier when responses become empty or
+truncated:
+
+```ini
+LLMChatter.Provider = openrouter
+LLMChatter.Model = deepseek/deepseek-v4-flash
+LLMChatter.OpenRouter.ReasoningEffort = high
+LLMChatter.OpenRouter.ReasoningExclude = 1
+LLMChatter.OpenRouter.MaxTokensMultiplier = 5
+```
+
+`ReasoningExclude` hides reasoning text returned by OpenRouter but does
+not reduce reasoning-token usage or cost. The multiplier is ignored
+when the effort is empty or `none`. OpenRouter effort values are passed
+through without client-side validation because support varies by model.
+
 ```ini
 LLMChatter.Provider = ollama
 LLMChatter.Model = qwen3:4b
@@ -613,7 +632,8 @@ Provider behavior:
 - **Google Gemini**: uses Google's OpenAI-compatible chat-completions
   endpoint, so system content is sent as a system role message
 - **OpenRouter**: uses OpenRouter's OpenAI-compatible
-  chat-completions endpoint with optional attribution headers
+  chat-completions endpoint with optional attribution headers and an
+  opt-in `reasoning` object for normal and quick-analysis requests
 - **Ollama**: same as OpenAI (system role message)
 
 When a plain string is passed to `call_llm()` instead of
@@ -628,6 +648,7 @@ When a plain string is passed to `call_llm()` instead of
 | `_build_chat_messages()` | Assembles the provider-specific messages array |
 | `_ollama_user_msg()` | Formats the user message for Ollama's chat API |
 | `_apply_google_options()` | Applies Gemini reasoning/thinking settings for OpenAI compatibility |
+| `_apply_openrouter_options()` | Applies opt-in OpenRouter reasoning settings |
 | `_openrouter_headers()` | Builds optional OpenRouter attribution headers |
 
 ---
