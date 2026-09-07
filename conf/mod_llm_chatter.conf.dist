@@ -348,6 +348,34 @@ LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
 
 #
+#   LLMChatter.OpenRouter.ReasoningEffort
+#       Optional OpenRouter reasoning effort. Leave empty to omit the
+#       reasoning object and preserve the model's default behavior.
+#       Set to "none" to explicitly disable reasoning on hybrid models.
+#       Other values are passed through without validation because
+#       supported efforts vary by model (for example: low, high, xhigh).
+#
+LLMChatter.OpenRouter.ReasoningEffort =
+
+#
+#   LLMChatter.OpenRouter.ReasoningExclude
+#       When 1 and ReasoningEffort is set, asks OpenRouter not to return
+#       reasoning text. This does not reduce reasoning-token usage or cost.
+#       Default: 0
+#
+LLMChatter.OpenRouter.ReasoningExclude = 0
+
+#
+#   LLMChatter.OpenRouter.MaxTokensMultiplier
+#       Multiplies per-call output budgets only while reasoning is enabled.
+#       Reasoning tokens share the output budget, so values above 1 can
+#       prevent empty or truncated chatter at higher reasoning efforts.
+#       A value of 5 is a useful starting point for effort "high".
+#       Clamped to the range 1-8. Default: 1
+#
+LLMChatter.OpenRouter.MaxTokensMultiplier = 1
+
+#
 #   LLMChatter.OpenRouter.HttpReferer
 #       Optional site URL for OpenRouter attribution/rankings.
 #       Leave empty if you do not want to send this header.

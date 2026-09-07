@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-07 (Playerbot selector command filtering)
+Last updated: 2026-09-07 (OpenRouter reasoning controls)
 
 ## Purpose
 
@@ -235,6 +235,10 @@ It carries two extra attributes:
      SDK v1 compatibility
    - **OpenAI / Google / OpenRouter / Ollama**: system role message +
      user role message
+   - **OpenRouter reasoning**: `_apply_openrouter_options()` adds the
+     opt-in `reasoning` object to normal and quick-analysis requests;
+     `_effective_max_tokens()` applies its multiplier only while an
+     effort other than `none` is enabled
 4. If a plain string is passed instead of `PromptParts`, the entire
    string is sent as a single user message (backward compatibility).
 
@@ -525,7 +529,7 @@ This asymmetry is known and acceptable in the shipped source state.
 |---|---|
 | `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition |
-| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; `label=` param logs every call via `chatter_request_logger` |
+| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
