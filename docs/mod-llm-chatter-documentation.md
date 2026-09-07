@@ -1135,8 +1135,13 @@ more socially dynamic.
 Known playerbot control commands are not supposed to reach this
 conversation path in current source:
 
-- C++ now blocks them before creating `bot_group_player_msg` events
+- C++ blocks them before creating `bot_group_player_msg` events,
+  including known commands following a valid Playerbot `@target`
+  selector and `@command` shorthand
 - Python keeps `_is_playerbot_command()` as a fallback skip layer
+- ordinary `@BotName` conversation and non-command text after a simple
+  selector are preserved; valid aura and aggro selectors are always
+  treated as unconditional Playerbot control traffic
 
 ### Trigger logic
 
