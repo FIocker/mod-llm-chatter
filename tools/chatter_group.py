@@ -288,6 +288,97 @@ PLAYERBOT_COMMANDS = {
 }
 
 
+PLAYERBOT_SELECTOR_PREFIXES = {
+    # Role / combat type
+    '@tank', '@dps', '@heal', '@ranged', '@melee',
+    '@rangeddps', '@meleedps',
+
+    # Classes
+    '@dk', '@druid', '@hunter', '@mage', '@paladin',
+    '@priest', '@rogue', '@shaman', '@warlock',
+    '@warrior',
+
+    # Raid target icons
+    '@star', '@circle', '@diamond', '@triangle',
+    '@moon', '@square', '@cross', '@skull',
+
+    # Specs
+    '@hpal', '@ppal', '@rpal',
+    '@disc', '@hpr', '@spr',
+    '@arc', '@frost', '@fire',
+    '@arms', '@fury', '@pwar',
+    '@affl', '@demo', '@dest',
+    '@ele', '@enh', '@rsha',
+    '@bal', '@rdru',
+    '@bmh', '@mmh', '@svh',
+    '@mut', '@comb', '@sub',
+    '@fdk', '@udk',
+}
+
+
+def _is_ascii_digits(value: str) -> bool:
+    """Return True only for non-empty ASCII decimal digits."""
+    return bool(value) and value.isascii() and value.isdigit()
+
+
+def _split_playerbot_selector(message: str):
+    """Parse a leading Playerbot selector.
+
+    Returns ``(recognized, unconditional, command_tail)``.
+    Ordinary role/class/marker/spec/level/group selectors expose
+    their remaining text for normal command validation. Aura and
+    aggro selectors are unconditional control traffic because their
+    selector arguments are part of Playerbots' filter expression.
+    """
+    parts = message.split(maxsplit=1)
+    first_token = parts[0]
+    command_tail = parts[1] if len(parts) > 1 else ''
+
+    if first_token in PLAYERBOT_SELECTOR_PREFIXES:
+        return True, False, command_tail
+
+    group_selector = first_token.removeprefix('@group')
+    if group_selector != first_token:
+        valid_group = (
+            bool(group_selector)
+            and group_selector.isascii()
+            and any(char.isdigit() for char in group_selector)
+            and all(
+                char.isdigit() or char in ',-'
+                for char in group_selector
+            )
+        )
+        if valid_group:
+            return True, False, command_tail
+
+    # Playerbots also supports @LEVEL and @FROM-TO.
+    level_selector = first_token[1:]
+    if _is_ascii_digits(level_selector):
+        return True, False, command_tail
+
+    if '-' in level_selector:
+        lower, upper = level_selector.split('-', 1)
+        if (
+            _is_ascii_digits(lower)
+            and _is_ascii_digits(upper)
+        ):
+            return True, False, command_tail
+
+    for prefix in ('@noaura', '@aura'):
+        if not first_token.startswith(prefix):
+            continue
+        aura_token = first_token[len(prefix):]
+        if not aura_token and command_tail:
+            aura_token = command_tail.split(maxsplit=1)[0]
+        if _is_ascii_digits(aura_token):
+            return True, True, ''
+
+    if first_token.startswith('@aggroby'):
+        return True, True, ''
+
+    return False, False, ''
+
+
 def _is_playerbot_command(message: str) -> bool:
     """Check if a message is a playerbot command.
     Returns True if the full message (stripped,
@@ -298,6 +389,26 @@ def _is_playerbot_command(message: str) -> bool:
     msg = message.strip().lower()
     if not msg:
         return False
+
+    # Playerbots @target selector syntax is control traffic,
+    # not conversational content.
+    if msg.startswith('@'):
+        recognized, unconditional, command_tail = (
+            _split_playerbot_selector(msg)
+        )
+        if unconditional:
+            return True
+        if recognized:
+            msg = command_tail
+        else:
+            first_token = msg.split(maxsplit=1)[0]
+            if first_token == '@':
+                return False
+            # Support @command forms such as @follow while
+            # preserving normal @name conversation.
+            msg = msg[1:].lstrip()
+        if not msg:
+            return False
 
     # Exact match (e.g. "follow", "stay", "ss")
     if msg in PLAYERBOT_COMMANDS:
@@ -1510,17 +1621,19 @@ def process_group_player_msg_event(
     # Parse and resolve WoW links in message
     # Keep raw message for detect_item_links
     raw_player_message = player_message
+
+    # Filter the original text before link resolution so the fallback
+    # sees the same Playerbot syntax that the C++ guard received.
+    if _is_playerbot_command(raw_player_message):
+        _mark_event(db, event_id, 'skipped')
+        return False
+
     link_context = ""
     player_message, link_context = (
         resolve_and_format_links(
             config, player_message
         )
     )
-
-    # Skip playerbot commands (follow, stay, etc.)
-    if _is_playerbot_command(player_message):
-        _mark_event(db, event_id, 'skipped')
-        return False
 
     # Get all bots in group for name matching
     cursor = db.cursor(dictionary=True)

@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-07-25 (probabilistic Guild continuity context)
+Last updated: 2026-09-07 (Playerbot selector command filtering)
 
 ## Purpose
 
@@ -869,9 +869,14 @@ Known playerbot control commands do not enter this path in current
 source:
 
 - C++ `IsLikelyPlayerbotControlCommand()` in `LLMChatterGroup.cpp`
-  blocks them before `bot_group_player_msg` is queued
+  blocks them before `bot_group_player_msg` is queued, including known
+  commands following a valid Playerbot `@target` selector and
+  `@command` shorthand
 - Python `_is_playerbot_command()` in `chatter_group.py` remains as a
   fallback skip layer
+- ordinary `@BotName` conversation and non-command text after a simple
+  selector remain eligible for Chatter; valid aura and aggro selectors
+  are always treated as unconditional Playerbot control traffic
 
 1. `find_addressed_bot()` in `chatter_shared.py` always fires an LLM
    call to assess `multi_addressed` (boolean). When true and >=2 bots
