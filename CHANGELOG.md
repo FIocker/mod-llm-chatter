@@ -1,5 +1,28 @@
 # Changelog
 
+### 2026-09-07 - Normal Player Chat Mode
+
+* **Player-side normal mode**: Playerbots now speak as people playing
+  World of Warcraft across General, Party, Guild, Battleground, Raid,
+  screenshot, emote, and playerbot `/say` prompts. The shared voice
+  contract favors friendly, natural MMO chat with room for varied
+  personalities and occasional mild bluntness.
+* **NPC roleplay preserved**: Actual NPCs remain inhabitants of Azeroth
+  in proximity chatter regardless of the configured playerbot mode,
+  including mixed NPC and playerbot scenes.
+* **Broader conversation variety**: Normal-mode Guild, proximity,
+  ambient, Party-question, dungeon-question, and Battleground topic
+  pools now provide substantially more distinct gameplay and social
+  subjects without relying on in-world roleplay framing.
+* **Mode-safe context and caching**: Normal prompts ignore legacy
+  roleplay-shaped identity metadata, active group personalities are
+  normalized at bridge startup, and ready pre-cache rows are discarded
+  before mode-specific responses are refilled.
+* **Configuration and regression coverage**: Normal mode is now the
+  documented default, with focused tests protecting channel routing,
+  roleplay preservation, topic diversity, prompt context, and startup
+  cache behavior.
+
 ### 2026-09-07 - OpenRouter Reasoning Controls
 
 * **Opt-in reasoning configuration**: OpenRouter requests can now send

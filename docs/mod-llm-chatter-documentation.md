@@ -661,11 +661,31 @@ Configured through:
 
 Modes:
 
-- `normal`: casual MMO-style chat
+- `normal`: playerbots speak as people playing WoW
 - `roleplay`: in-character, race/class-influenced chat
 
-The Python prompt builders are mode-aware and choose different tone,
-mood, and style guidance based on the configured mode.
+The Python prompt builders use `chatter_mode.py` as the canonical voice
+contract. Normal mode applies to playerbot speech in General, Party,
+Guild, Battleground, Raid, screenshot reactions, emote reactions, and
+playerbot proximity `/say`. It has a friendly and respectful baseline,
+allows polite, quiet, dry, playful, blunt, or occasionally mildly salty
+players, and avoids making toxicity or forced gamer slang the default.
+
+Normal prompts treat race, class, level, health, travel, weather, and
+locations as character or game state rather than sensations physically
+experienced by the speaker. Character backstories and race/class
+worldview material are prompt inputs only in roleplay mode. Memory
+callbacks in normal mode are framed as remembered gameplay events.
+
+Actual NPCs are the exception: they always remain lore-friendly,
+in-world speakers. Proximity chatter can contain NPCs and playerbots in
+the same scene, so `chatter_proximity.py` applies the voice rule per
+speaker using the existing `is_npc` payload field.
+
+Changing `LLMChatter.ChatterMode` requires a bridge restart. Because
+`llm_group_cached_responses` has no mode column, bridge startup removes
+only `ready` pre-cache rows and then refills them under the active mode;
+used and expired history is left to normal cache hygiene.
 
 ---
 
@@ -1853,7 +1873,7 @@ from the resulting description.
 2. Resolves zone/subzone context via existing `get_zone_name()`,
    `get_zone_flavor()`, `get_subzone_name()`, `get_subzone_lore()`,
    `get_dungeon_flavor()`, `get_time_of_day_context()`
-3. Builds bot identity via `build_bot_identity(name, race, class, gender)`
+3. Builds the playerbot identity and voice via `chatter_mode.py`
 4. Adds live travel context when present. This lets the LLM use taxi
    flight, flying mount, ground mount, swimming, or world-transport
    context while avoiding impossible ground actions.
@@ -1861,6 +1881,12 @@ from the resulting description.
    conversation (`append_conversation_json_instruction()` +
    `parse_conversation_response()`)
 6. Writes messages to `llm_chatter_messages` for C++ delivery
+
+Roleplay mode treats the vision description as what the character sees
+in-world and excludes UI/game-mechanic commentary. Normal mode treats it
+as a description of the game screenshot, allows supplied world or UI
+details to be discussed without inventing them, and responds in player
+voice rather than claiming physical presence in the scene.
 
 ### Config keys
 
@@ -1960,7 +1986,7 @@ struct tracks:
 This enables natural player-to-NPC/bot exchanges without requiring
 the player to target or emote at anyone.
 
-### Topic pool
+### Topic pools
 
 `PROXIMITY_CHAT_TOPICS` in `chatter_constants.py` provides 250+
 topics across 17 categories:
@@ -1968,6 +1994,12 @@ topics across 17 categories:
 - weather, travel, local flavor, trade, rumors, daily life, military,
   faction politics, wildlife, profession, food and drink, history,
   adventure, philosophy, humor, seasonal, and general social
+
+That pool remains the source for NPCs and roleplay-mode playerbots.
+`PROXIMITY_PLAYER_CHAT_TOPICS` supplies normal-mode playerbot `/say`
+subjects such as gameplay progress, interface/keybind observations,
+queues, routes, group needs, and light player banter. Mixed conversations
+receive separate NPC and playerbot topic angles.
 
 ### Python handling
 
@@ -1980,8 +2012,10 @@ topics across 17 categories:
 | `proximity_reply` | Player reply response | NPC/bot replies to player `/say` |
 
 Prompts include nearby entity names so speakers can address each other
-by name. Uses global `EmoteChance` and `ActionChance` gates (not custom
-proximity-specific ones).
+by name. Roster entries identify each participant as `NPC` or
+`PLAYERBOT`; the prompt keeps NPCs in-world and applies ChatterMode only
+to playerbots. Uses global `EmoteChance` and `ActionChance` gates (not
+custom proximity-specific ones).
 
 ### C++ ownership
 
@@ -2042,8 +2076,9 @@ Base schema `00000000_llm_chatter_tables.sql` updated to match.
 
 ## 13r. Guild Chat Statements and Conversations
 
-Guild chatter is an optional, RP-only ambient channel. It is enabled
-by default and can be disabled with the master toggle.
+Guild chatter is an optional ambient channel. It is enabled by default,
+can be disabled with the master toggle, and follows the configured
+playerbot chatter mode.
 
 ### Trigger and participant ownership
 
@@ -2074,8 +2109,8 @@ are interpreted as legacy statements.
 
 ### Topic and prompt policy
 
-`chatter_guild.py` selects one entry from
-`GUILD_CHAT_TOPICS_RP` for the whole event. A single
+`chatter_guild.py` selects one entry from `GUILD_CHAT_TOPICS` in normal
+mode or `GUILD_CHAT_TOPICS_RP` in roleplay mode for the whole event. A single
 `GuildChatter.ZoneNameChance` roll also applies to the whole event.
 
 A separate `GuildChatter.HistoryContextChance` roll decides whether
@@ -2363,7 +2398,7 @@ One LLM request generates the complete greeting sequence. Prompts:
 - ask for one distinct 3-12-word greeting per selected bot
 - forbid bot-to-bot conversation
 - forbid invented absence length, destination, or player intent
-- retain the normal Guild cross-zone and RP-only rules
+- retain the normal Guild cross-zone and configured chatter-mode rules
 - allow only the primary greeter to be asked to use the player's name
 - enforce `LoginGreeting.MaxCharacters` after cleanup
 
