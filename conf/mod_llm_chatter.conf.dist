@@ -477,11 +477,14 @@ LLMChatter.Database.Name = acore_characters
 #
 #   LLMChatter.ChatterMode
 #       Controls the personality style of bot chat messages
-#       "normal"   - Casual MMO chat: abbreviations, game terms, OOC references
-#       "roleplay" - Fully in-character: race/class personality, lore-influenced speech
-#       Default: roleplay
+#       "normal"   - Natural WoW player chat with a friendly, respectful
+#                    baseline
+#       "roleplay" - Fully in-character race/class personality with
+#                    lore-influenced speech
+#       Actual NPCs remain in character in either mode
+#       Default: normal
 #
-LLMChatter.ChatterMode = roleplay
+LLMChatter.ChatterMode = normal
 
 #
 #   LLMChatter.Language [BRIDGE]
