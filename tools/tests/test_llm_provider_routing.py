@@ -18,6 +18,7 @@ from chatter_llm import (
     quick_llm_analyze,
 )
 from chatter_provider import (
+    get_openai_compatible_headers,
     get_openai_compatible_request_mode,
     get_openai_compatible_thinking_style,
 )
@@ -111,6 +112,31 @@ class ProviderRoutingTests(unittest.TestCase):
             {'thinking': {'type': 'disabled'}},
         )
         self.assertEqual(chat.calls[0]['max_tokens'], 60)
+
+    def test_opencode_go_gets_required_session_headers(self):
+        config = self.base_config()
+        config['LLMChatter.OpenRouter.BaseUrl'] = (
+            'https://opencode.ai/zen/go/v1'
+        )
+        headers = get_openai_compatible_headers(
+            config, {'HTTP-Referer': 'https://example.invalid'}
+        )
+        self.assertEqual(
+            headers['x-opencode-session'], 'mod-llm-chatter'
+        )
+        self.assertEqual(
+            headers['User-Agent'], 'mod-llm-chatter/4.0'
+        )
+        self.assertIn('HTTP-Referer', headers)
+
+    def test_non_go_endpoint_does_not_get_session_headers(self):
+        config = self.base_config()
+        config['LLMChatter.OpenRouter.BaseUrl'] = (
+            'https://api.deepseek.com/v1'
+        )
+        self.assertEqual(
+            get_openai_compatible_headers(config), {}
+        )
 
     def test_go_deepseek_uses_nested_reasoning_in_chat(self):
         config = self.base_config()

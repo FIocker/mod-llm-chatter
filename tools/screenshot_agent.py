@@ -27,6 +27,8 @@ import time
 import mysql.connector
 from PIL import Image
 
+from chatter_provider import get_openai_compatible_headers
+
 log = logging.getLogger("screenshot_agent")
 
 GOOGLE_OPENAI_BASE_URL = (
@@ -729,6 +731,7 @@ def _create_vision_client(config: dict):
             'api_key': config['openrouter_api_key'],
             'base_url': config['openrouter_base_url'],
         }
+        headers = get_openai_compatible_headers(config, headers)
         if headers:
             kwargs['default_headers'] = headers
         return openai.OpenAI(**kwargs)

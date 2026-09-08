@@ -32,7 +32,10 @@ from chatter_constants import PERSONALITY_TRAITS
 from chatter_constants import GOOGLE_OPENAI_BASE_URL
 from chatter_constants import OPENROUTER_BASE_URL
 from chatter_db import mark_event
-from chatter_provider import create_anthropic_client
+from chatter_provider import (
+    create_anthropic_client,
+    get_openai_compatible_headers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -478,6 +481,7 @@ def _generate_bot_tone(
                     OPENROUTER_BASE_URL,
                 ),
             }
+            headers = get_openai_compatible_headers(config, headers)
             if headers:
                 kwargs['default_headers'] = headers
             client = _openai.OpenAI(**kwargs)
@@ -703,6 +707,7 @@ def _generate_bot_backstory(
                     OPENROUTER_BASE_URL,
                 ),
             }
+            headers = get_openai_compatible_headers(config, headers)
             if headers:
                 kwargs['default_headers'] = headers
             client = _openai.OpenAI(**kwargs)

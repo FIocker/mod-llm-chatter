@@ -29,6 +29,7 @@ import anthropic
 import openai
 from chatter_provider import (
     create_anthropic_client,
+    get_openai_compatible_headers,
     get_openai_compatible_request_mode,
     get_openai_compatible_thinking_style,
 )
@@ -1361,6 +1362,7 @@ def main():
             headers['HTTP-Referer'] = referer
         if title:
             headers['X-OpenRouter-Title'] = title
+        headers = get_openai_compatible_headers(config, headers)
         kwargs = {
             'api_key': api_key,
             'base_url': config.get(

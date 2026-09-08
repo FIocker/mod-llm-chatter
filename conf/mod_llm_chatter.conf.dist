@@ -428,6 +428,17 @@ LLMChatter.OpenAICompatible.DisableThinking = 0
 #
 LLMChatter.OpenAICompatible.DisableThinkingStyle = thinking
 
+#   LLMChatter.OpenAICompatible.SessionId
+#       Stable conversation/session identifier required by OpenCode Go.
+#       It is sent only when OpenRouter.BaseUrl points at OpenCode Go.
+#
+#   LLMChatter.OpenAICompatible.UserAgent
+#       Client identifier required by OpenCode Go. It is likewise limited
+#       to the OpenCode Go endpoint.
+
+LLMChatter.OpenAICompatible.SessionId = mod-llm-chatter
+LLMChatter.OpenAICompatible.UserAgent = mod-llm-chatter/4.0
+
 # Tested profiles:
 #   DeepSeek API / DeepSeek V4 Flash:
 #     BaseUrl=https://api.deepseek.com, Model=deepseek-v4-flash,

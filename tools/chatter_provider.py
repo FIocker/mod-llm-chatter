@@ -6,6 +6,33 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def get_openai_compatible_headers(config, headers=None):
+    """Return provider-specific HTTP headers for compatible endpoints.
+
+    OpenCode Go requires an identifying user agent and a stable session ID.
+    Limit these headers to its endpoint so ordinary OpenRouter, DeepSeek,
+    OpenCode Zen, Google, and local-compatible routes remain unchanged.
+    """
+    result = dict(headers or {})
+    base_url = str(config.get(
+        'LLMChatter.OpenRouter.BaseUrl', ''
+    )).strip().lower()
+    if 'opencode.ai/zen/go/' not in base_url.rstrip('/') + '/':
+        return result
+
+    session_id = str(config.get(
+        'LLMChatter.OpenAICompatible.SessionId',
+        'mod-llm-chatter',
+    )).strip() or 'mod-llm-chatter'
+    user_agent = str(config.get(
+        'LLMChatter.OpenAICompatible.UserAgent',
+        'mod-llm-chatter/4.0',
+    )).strip() or 'mod-llm-chatter/4.0'
+    result.setdefault('x-opencode-session', session_id)
+    result.setdefault('User-Agent', user_agent)
+    return result
+
+
 def _config_enabled(config, key, default='0'):
     """Return a permissive boolean config value."""
     return str(config.get(key, default)).strip().lower() in (
