@@ -346,6 +346,12 @@ def _call_openai_compatible(
     if provider == 'google':
         _apply_google_options(kwargs, config)
     elif provider == 'openrouter':
+        # Preserve upstream OpenRouter reasoning controls while also
+        # supporting endpoint-specific OpenAI-compatible overrides.
+        # The compatible override is applied last intentionally: an
+        # explicit DisableThinking profile is more specific than the
+        # generic OpenRouter setting.
+        _apply_openrouter_options(kwargs, config)
         apply_openai_compatible_options(
             kwargs, config, request_mode='chat'
         )
