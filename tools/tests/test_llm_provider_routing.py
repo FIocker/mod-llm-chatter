@@ -4,13 +4,17 @@ import os
 import sys
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if TOOLS not in sys.path:
     sys.path.insert(0, TOOLS)
 
-from chatter_healthcheck import _probe_openai_compatible
+from chatter_healthcheck import (
+    _build_openai_compatible_client,
+    _probe_openai_compatible,
+)
 from chatter_llm import (
     _extract_responses_content,
     _call_openai_compatible,
@@ -136,6 +140,25 @@ class ProviderRoutingTests(unittest.TestCase):
         )
         self.assertEqual(
             get_openai_compatible_headers(config), {}
+        )
+
+    def test_healthcheck_client_uses_go_session_headers(self):
+        config = self.base_config()
+        config.update({
+            'LLMChatter.OpenRouter.ApiKey': 'test-key',
+            'LLMChatter.OpenRouter.BaseUrl': (
+                'https://opencode.ai/zen/go/v1'
+            ),
+        })
+        calls = []
+        fake_openai = SimpleNamespace(
+            OpenAI=lambda **kwargs: calls.append(kwargs)
+        )
+        with patch.dict(sys.modules, {'openai': fake_openai}):
+            _build_openai_compatible_client(config, 'openrouter')
+        self.assertEqual(
+            calls[0]['default_headers']['x-opencode-session'],
+            'mod-llm-chatter',
         )
 
     def test_go_deepseek_uses_nested_reasoning_in_chat(self):

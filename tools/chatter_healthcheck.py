@@ -54,6 +54,7 @@ from chatter_provider import (
     apply_anthropic_options,
     apply_openai_compatible_options,
     create_anthropic_client,
+    get_openai_compatible_headers,
     get_openai_compatible_request_mode,
 )
 
@@ -576,6 +577,9 @@ def _build_openai_compatible_client(config, provider):
             'LLMChatter.OpenRouter.BaseUrl', OPENROUTER_BASE_URL
         ),
     }
+    headers = get_openai_compatible_headers(config)
+    if headers:
+        kwargs['default_headers'] = headers
     return openai.OpenAI(**kwargs)
 
 
